@@ -23,6 +23,28 @@ describe('GameClient store', () => {
     expect(localStorage.getItem('railyard.token')).toBe('t');
   });
 
+  it('records who is connected from each snapshot', () => {
+    const c = new GameClient('ws://unused');
+    c.receive({
+      type: 'snapshot',
+      view: { phase: 'setup' } as never,
+      presence: [
+        { id: 'p1', connected: true },
+        { id: 'p2', connected: false },
+      ],
+    });
+    expect(c.getState().presence).toEqual({ p1: true, p2: false });
+  });
+
+  it('forgets a token the server no longer knows and shows why', () => {
+    const c = new GameClient('ws://unused');
+    c.receive({ type: 'joined', code: 'ABCDEF', playerId: 'p1', token: 'stale', hostId: 'p1' });
+    expect(localStorage.getItem('railyard.token')).toBe('stale');
+    c.receive({ type: 'rejected', reason: 'Unknown reconnect token' });
+    expect(localStorage.getItem('railyard.token')).toBeNull();
+    expect(c.getState().rejection).toMatch(/game is no longer available/i);
+  });
+
   it('keeps the last rejection until the next good message', () => {
     const c = new GameClient('ws://unused');
     c.receive({ type: 'rejected', reason: 'That colour is taken' });

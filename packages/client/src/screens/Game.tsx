@@ -14,9 +14,15 @@ import { Players } from '../panels/Players';
 import { Table } from '../panels/Table';
 import { TicketChoice } from '../panels/TicketChoice';
 import { Tickets } from '../panels/Tickets';
-import { client } from '../ws';
+import { client, type Presence } from '../ws';
 
-export function Game({ view, rejection }: { view: PlayerView; rejection?: string | undefined }) {
+export interface GameProps {
+  view: PlayerView;
+  rejection?: string | undefined;
+  presence?: Presence | undefined;
+}
+
+export function Game({ view, rejection, presence }: GameProps) {
   const playerColours: Record<PlayerId, PlayerColour> = {};
   for (const p of view.players) playerColours[p.id] = p.colour;
   const legal = legalActions(view);
@@ -107,7 +113,7 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
         />
       </section>
       <aside className="sidebar">
-        <Players view={view} />
+        <Players view={view} presence={presence} />
         <Table
           faceUp={view.faceUp}
           trainDeckSize={view.trainDeckSize}

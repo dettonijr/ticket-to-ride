@@ -24,8 +24,9 @@ export function App() {
   }
 
   if (state.view && state.playerId) {
-    if (state.view.phase === 'finished') return <Summary view={state.view} />;
-    return <Game view={state.view} rejection={state.rejection} />;
+    if (state.view.phase === 'finished')
+      return <Summary view={state.view} hostId={state.hostId} presence={state.presence} />;
+    return <Game view={state.view} rejection={state.rejection} presence={state.presence} />;
   }
 
   if (state.code && state.playerId && state.hostId && state.lobby) {
