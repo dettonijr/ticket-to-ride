@@ -18,12 +18,16 @@ import { createServer, type RailyardServer } from './server';
  */
 
 const SEED = 4242;
+let seedsDrawn = 0;
 let server: RailyardServer;
 let rooms: RoomManager;
 let port: number;
 
 beforeAll(async () => {
-  rooms = new RoomManager({ randomSeed: () => SEED, randomOrder: (items) => items.slice() });
+  rooms = new RoomManager({
+    randomSeed: () => SEED + seedsDrawn++,
+    randomOrder: (items) => items.slice(),
+  });
   server = createServer({ staticDir: '/nonexistent', rooms });
   await new Promise<void>((done) => server.httpServer.listen(0, '127.0.0.1', done));
   const address = server.httpServer.address();
@@ -42,7 +46,6 @@ class Client {
     ws.on('message', (raw) => {
       const msg = JSON.parse(String(raw)) as ServerMessage;
       if (msg.type === 'snapshot') this.view = msg.view;
-      if (msg.type === 'rejected') throw new Error(`rejected: ${msg.reason}`);
       for (const w of this.waiters.splice(0)) w(msg);
     });
   }
@@ -61,6 +64,7 @@ class Client {
     for (;;) {
       const m = await this.next();
       if (m.type === 'snapshot') return m.view;
+      if (m.type === 'rejected') throw new Error(`rejected: ${m.reason}`);
     }
   }
   close(): void {
@@ -161,6 +165,30 @@ describe('a full game through the server', () => {
     }
     expect(replay.phase).toBe('finished');
     expect(replay.result).toEqual(a.result);
+
+    // Only the host may start a rematch.
+    const refused = bob.next();
+    bob.send({ type: 'rematch' });
+    expect(await refused).toEqual({
+      type: 'rejected',
+      reason: 'Only the host can start a rematch',
+    });
+
+    // The host's rematch deals a new game to the same players, with a new seed.
+    const redealt = Promise.all([ann.nextSnapshot(), bob.nextSnapshot()]);
+    ann.send({ type: 'rematch' });
+    const [a2, b2] = await redealt;
+    expect(a2.phase).toBe('setup');
+    expect(b2.phase).toBe('setup');
+    expect(a2.me.id).toBe(a.me.id);
+    expect(b2.me.id).toBe(b.me.id);
+    expect(a2.me.pendingTickets).toHaveLength(3);
+    expect(a2.me.tickets).toEqual([]);
+    expect(a2.claimed).toEqual({});
+    expect(a2.result).toBeUndefined();
+    expect(a2.players.map((p) => p.colour).sort()).toEqual(['blue', 'red']);
+    expect(room.game?.seed).toBe(SEED + 1);
+    expect(room.log).toEqual([]);
 
     ann.close();
     bob.close();

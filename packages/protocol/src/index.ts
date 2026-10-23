@@ -7,7 +7,9 @@ export type ClientMessage =
   | { type: 'join'; code: string; name: string; colour: PlayerColour }
   | { type: 'reconnect'; token: string }
   | { type: 'start' }
-  | { type: 'action'; action: Action };
+  | { type: 'action'; action: Action }
+  /** Host only, once the game is finished: same seats, fresh deal. */
+  | { type: 'rematch' };
 
 export interface LobbyPlayer {
   id: PlayerId;
@@ -16,12 +18,18 @@ export interface LobbyPlayer {
   connected: boolean;
 }
 
+/** Who is currently connected, sent with every snapshot so the table can show it. */
+export interface Presence {
+  id: PlayerId;
+  connected: boolean;
+}
+
 /** Messages the server sends to a browser. */
 export type ServerMessage =
   | { type: 'pong' }
   | { type: 'joined'; code: string; playerId: PlayerId; token: string; hostId: PlayerId }
   | { type: 'lobby'; code: string; hostId: PlayerId; players: LobbyPlayer[] }
-  | { type: 'snapshot'; view: PlayerView }
+  | { type: 'snapshot'; view: PlayerView; presence: Presence[] }
   | { type: 'rejected'; reason: string }
   | { type: 'error'; message: string };
 
@@ -37,6 +45,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   switch (m['type']) {
     case 'ping':
     case 'start':
+    case 'rematch':
       return { type: m['type'] };
     case 'create':
       if (typeof m['name'] === 'string' && typeof m['colour'] === 'string')

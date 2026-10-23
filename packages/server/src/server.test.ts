@@ -159,17 +159,32 @@ describe('server', () => {
     ann.send({ type: 'start' });
     await snap;
 
-    const annSeesDrop = ann.next('lobby');
+    const annSeesDrop = ann.next('snapshot');
     bob.close();
-    expect((await annSeesDrop).players.find((p) => p.id === playerId)?.connected).toBe(false);
+    const dropped = await annSeesDrop;
+    expect(dropped.presence.find((p) => p.id === playerId)?.connected).toBe(false);
+    expect(dropped.view.phase).toBe('setup');
 
     const bob2 = await Client.connect();
     const again = bob2.next('snapshot');
+    const annSeesReturn = ann.next('snapshot');
     bob2.send({ type: 'reconnect', token });
-    expect((await again).view.me.id).toBe(playerId);
+    const restored = await again;
+    expect(restored.view.me.id).toBe(playerId);
+    expect(restored.view.me.hand).toHaveLength(4);
+    expect(restored.presence.every((p) => p.connected)).toBe(true);
+    expect((await annSeesReturn).presence.find((p) => p.id === playerId)?.connected).toBe(true);
 
     ann.close();
     bob2.close();
+  });
+
+  it('rejects an unknown reconnect token with a reason', async () => {
+    const c = await Client.connect();
+    const rejected = c.next('rejected');
+    c.send({ type: 'reconnect', token: 'no-such-token' });
+    expect((await rejected).reason).toBe('Unknown reconnect token');
+    c.close();
   });
 
   it('runs actions through the engine: ticket choices reach turnStart and bad ones are rejected', async () => {
@@ -334,9 +349,11 @@ describe('server', () => {
     const other = current === ann ? bob : ann;
     const handBefore = a1.view.players.find((p) => p.id === a1.view.currentPlayer)!.handSize;
 
-    // First draw: a face-up card. Both see the replacement and the bigger hand.
+    // First draw: a face-up card that is not a locomotive (a locomotive would end the turn).
+    // The deal is random here, so pick by looking rather than assuming slot 0.
+    const index = a1.view.faceUp.findIndex((c) => c !== 'locomotive');
     const afterOne = Promise.all([current.next('snapshot'), other.next('snapshot')]);
-    current.send({ type: 'action', action: { type: 'drawFaceUp', index: 0 } });
+    current.send({ type: 'action', action: { type: 'drawFaceUp', index } });
     const [c1, o1] = await afterOne;
     expect(c1.view.phase).toBe('drewOne');
     expect(c1.view.me.hand).toHaveLength(handBefore + 1);
