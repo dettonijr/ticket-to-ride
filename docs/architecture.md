@@ -75,7 +75,7 @@ Dependency direction is strict: `client → engine`, `server → engine`, and `e
 One function does all the work:
 
 ```ts
-apply(state: GameState, action: Action): { ok: true; state: GameState } | { ok: false; violation: RuleViolation }
+apply(state: GameState, playerId: PlayerId, action: Action): { ok: true; state: GameState } | { ok: false; violation: RuleViolation }
 ```
 
 It never mutates its input and never touches the clock or `Math.random`. Shuffles come from a generator seeded at game creation, so replaying the action log from the seed rebuilds the identical game.
