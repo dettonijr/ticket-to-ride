@@ -480,3 +480,68 @@ button.card:disabled {
   margin-top: 8px;
   font-style: italic;
 }
+
+/* Summary */
+
+.banner.final-round {
+  background: #fdf2e9;
+  border-left-color: #c2410c;
+}
+
+.summary .ranking .rank {
+  font-weight: 600;
+  min-width: 1.5em;
+}
+
+.tag.winner {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+
+.breakdown {
+  border-collapse: collapse;
+  min-width: 420px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdown th,
+.breakdown td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.breakdown thead th {
+  font-weight: 600;
+}
+
+.breakdown tbody th {
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.breakdown .total-row td,
+.breakdown .total-row th {
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.summary-tickets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}

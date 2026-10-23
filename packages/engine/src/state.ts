@@ -1,4 +1,5 @@
 import type { RngState } from './rng';
+import type { FinalResult } from './scoring/finalScore';
 
 /** The eight train card colours plus the wild locomotive. */
 export const COLOURS = [
@@ -97,6 +98,8 @@ export interface GameState {
   finalRoundTriggeredBy?: PlayerId;
   /** Turns left in the final round, once triggered. */
   turnsRemaining?: number;
+  /** The final scoring, computed once when the phase becomes `finished`. */
+  result?: FinalResult;
 }
 
 export const TRAINS_PER_PLAYER = 45;

@@ -13,6 +13,7 @@ export * from './rng';
 export * from './setup';
 export * from './view';
 export * from './turn';
+export * from './scoring/finalScore';
 export * from './connectivity';
 export { TICKETS_PER_DRAW } from './rules/drawTickets';
 export * from './rules/claimRoute';

@@ -1,3 +1,4 @@
+import type { FinalResult } from './scoring/finalScore';
 import type {
   Card,
   GameState,
@@ -38,6 +39,10 @@ export interface PlayerView {
   ticketDeckSize: number;
   claimed: Record<RouteId, PlayerId>;
   finalRoundTriggeredBy?: PlayerId;
+  /** Turns left in the final round, once triggered. */
+  turnsRemaining?: number;
+  /** Everyone's tickets and breakdown, present only once the game is finished. */
+  result?: FinalResult;
   lastAction?: LastAction;
   /** Ids of players who still have to choose tickets, so the client can show who is waited on. */
   waitingOn: PlayerId[];
@@ -75,6 +80,12 @@ export function redact(state: GameState, playerId: PlayerId): PlayerView {
   };
   if (state.finalRoundTriggeredBy !== undefined) {
     view.finalRoundTriggeredBy = state.finalRoundTriggeredBy;
+  }
+  if (state.turnsRemaining !== undefined) {
+    view.turnsRemaining = state.turnsRemaining;
+  }
+  if (state.phase === 'finished' && state.result !== undefined) {
+    view.result = structuredClone(state.result);
   }
   if (state.lastAction !== undefined) {
     view.lastAction = { ...state.lastAction };

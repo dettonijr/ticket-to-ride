@@ -78,4 +78,16 @@ describe('endTurn', () => {
     endTurn(before, did);
     expect(JSON.stringify(before)).toBe(snapshot);
   });
+
+  it('scores the game once the last turn is taken and stores the result', () => {
+    let s = endTurn(withTrains(playing(), 'a', 1), did);
+    expect(s.result).toBeUndefined();
+    s = endTurn(s, did);
+    s = endTurn(s, did);
+    expect(s.result).toBeUndefined();
+    s = endTurn(s, did);
+    expect(s.phase).toBe('finished');
+    expect(s.result?.players.map((p) => p.playerId).sort()).toEqual(['a', 'b', 'c']);
+    expect(s.result?.ranking).toHaveLength(3);
+  });
 });

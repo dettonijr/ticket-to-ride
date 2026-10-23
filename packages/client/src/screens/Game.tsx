@@ -34,6 +34,10 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
   const waitingNames = view.waitingOn
     .filter((id) => id !== view.me.id)
     .map((id) => view.players.find((p) => p.id === id)?.name ?? id);
+  const trigger =
+    view.finalRoundTriggeredBy !== undefined && view.phase !== 'finished'
+      ? view.players.find((p) => p.id === view.finalRoundTriggeredBy)
+      : undefined;
 
   return (
     <main className="game">
@@ -58,6 +62,12 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
               client.send({ type: 'action', action: { type: 'chooseTickets', keep } })
             }
           />
+        )}
+        {trigger && (
+          <p className="banner final-round" role="status" aria-label="final round">
+            Final round: {trigger.name} has {trigger.trainsLeft} train
+            {trigger.trainsLeft === 1 ? '' : 's'} left. Everyone gets one more turn.
+          </p>
         )}
         {view.phase === 'setup' && !ticketChoice && (
           <p className="banner" role="status">

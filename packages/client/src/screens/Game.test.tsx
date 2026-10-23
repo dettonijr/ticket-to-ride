@@ -87,4 +87,24 @@ describe('Game screen', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Your turn: draw one more card.');
     expect(screen.getByRole('button', { name: /^train deck/ })).toBeEnabled();
   });
+
+  it('announces the final round once a player is down to two trains', () => {
+    let state = chooseAll(createGame(seats, 21));
+    state = {
+      ...state,
+      players: state.players.map((p) =>
+        p.id === 'p1' ? { ...p, trainsLeft: 3, hand: ['blue'] } : p,
+      ),
+    };
+    const r = apply(state, 'p1', {
+      type: 'claimRoute',
+      routeId: 'nashville-atlanta-1',
+      cards: ['blue'],
+    });
+    if (!r.ok) throw new Error(r.violation.message);
+    render(<Game view={redact(r.state, 'p2')} />);
+    expect(screen.getByRole('status', { name: 'final round' })).toHaveTextContent(
+      'Final round: Ann has 2 trains left. Everyone gets one more turn.',
+    );
+  });
 });
