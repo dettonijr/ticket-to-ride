@@ -1,5 +1,6 @@
 import type { Action, RuleViolation } from './actions';
 import { claimRoute } from './rules/claimRoute';
+import { drawBlind, drawFaceUp } from './rules/drawCards';
 import { INITIAL_TICKETS, type GameState, type PlayerId, type PlayerState } from './state';
 
 export type ApplyResult = { ok: true; state: GameState } | { ok: false; violation: RuleViolation };
@@ -29,7 +30,13 @@ export function apply(state: GameState, playerId: PlayerId, action: Action): App
         return refuse('wrong-phase', 'Everyone has to choose their tickets first');
       return claimRoute(state, player, action.routeId, action.cards);
     case 'drawFaceUp':
+      if (state.phase === 'setup')
+        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
+      return drawFaceUp(state, player, action.index);
     case 'drawBlind':
+      if (state.phase === 'setup')
+        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
+      return drawBlind(state, player);
     case 'drawTickets':
     case 'chooseTickets':
       if (state.phase === 'setup')
