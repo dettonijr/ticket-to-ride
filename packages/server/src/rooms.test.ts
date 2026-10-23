@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RoomError, RoomManager, type Outbox } from './rooms';
+import { RoomManager, type Outbox } from './rooms';
 import type { ServerMessage } from '@railyard/protocol';
 
 function inbox(): Outbox & {
@@ -84,7 +84,7 @@ describe('RoomManager', () => {
   ])('rejects a join with %s', (_label, attempt, reason) => {
     const rooms = manager();
     rooms.create('Ann', 'blue', inbox());
-    expect(() => attempt(rooms)).toThrow(new RoomError(reason));
+    expect(() => attempt(rooms)).toThrow(reason);
   });
 
   it('rejects a sixth player and a join after start', () => {

@@ -124,22 +124,25 @@ class Connection implements Outbox {
         case 'reconnect':
           this.seatAt(this.rooms.reconnect(msg.token, this));
           return;
-        case 'start':
-          if (!this.room || !this.seat) throw new RoomError('Join a game first');
-          this.rooms.start(this.room, this.seat.id);
+        case 'start': {
+          const { room, seat } = this.seated();
+          this.rooms.start(room, seat.id);
           return;
-        case 'action':
-          if (!this.room || !this.seat) throw new RoomError('Join a game first');
-          this.rooms.act(this.room, this.seat.id, msg.action);
+        }
+        case 'action': {
+          const { room, seat } = this.seated();
+          this.rooms.act(room, seat.id, msg.action);
           return;
-        case 'rematch':
-          if (!this.room || !this.seat) throw new RoomError('Join a game first');
-          this.rooms.rematch(this.room, this.seat.id);
+        }
+        case 'rematch': {
+          const { room, seat } = this.seated();
+          this.rooms.rematch(room, seat.id);
           return;
+        }
       }
     } catch (err) {
       if (err instanceof RoomError) {
-        this.send({ type: 'rejected', reason: err.message });
+        this.send({ type: 'rejected', code: err.code, reason: err.message });
         return;
       }
       throw err;
@@ -148,6 +151,12 @@ class Connection implements Outbox {
 
   closed(): void {
     if (this.seat) this.rooms.disconnect(this.seat, this);
+  }
+
+  /** The room and seat this connection holds, or a refusal if it has not joined a game. */
+  private seated(): { room: Room; seat: Seat } {
+    if (!this.room || !this.seat) throw new RoomError('not-seated', 'Join a game first');
+    return { room: this.room, seat: this.seat };
   }
 
   private seatAt(placed: { room: Room; seat: Seat }): void {

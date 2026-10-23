@@ -36,7 +36,16 @@ export interface Room {
   log: LoggedAction[];
 }
 
-export class RoomError extends Error {}
+/** A refusal outside the rules of the game: lobby, seating, reconnecting. `code` is stable. */
+export class RoomError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RoomError';
+  }
+}
 
 /** Unambiguous alphabet: no 0/O or 1/I. */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -114,14 +123,16 @@ export class RoomManager {
     outbox: Outbox,
   ): { room: Room; seat: Seat } {
     const room = this.get(code);
-    if (!room) throw new RoomError('No game with that code');
-    if (room.status !== 'lobby') throw new RoomError('That game has already started');
-    if (room.seats.length >= MAX_PLAYERS) throw new RoomError('That game is full');
+    if (!room) throw new RoomError('unknown-code', 'No game with that code');
+    if (room.status !== 'lobby')
+      throw new RoomError('already-started', 'That game has already started');
+    if (room.seats.length >= MAX_PLAYERS) throw new RoomError('game-full', 'That game is full');
     validateName(name);
     validateColour(colour);
     if (room.seats.some((s) => s.name.toLowerCase() === name.trim().toLowerCase()))
-      throw new RoomError('That nickname is taken');
-    if (room.seats.some((s) => s.colour === colour)) throw new RoomError('That colour is taken');
+      throw new RoomError('name-taken', 'That nickname is taken');
+    if (room.seats.some((s) => s.colour === colour))
+      throw new RoomError('colour-taken', 'That colour is taken');
     const seat = this.newSeat(name, colour, outbox);
     room.seats.push(seat);
     this.byToken.set(seat.token, { room, seat });
@@ -136,7 +147,7 @@ export class RoomManager {
    */
   reconnect(token: string, outbox: Outbox): { room: Room; seat: Seat } {
     const found = this.byToken.get(token);
-    if (!found) throw new RoomError('Unknown reconnect token');
+    if (!found) throw new RoomError('unknown-token', 'Unknown reconnect token');
     const { room, seat } = found;
     seat.outbox = outbox;
     outbox.send(this.joinedMessage(room, seat));
@@ -156,17 +167,20 @@ export class RoomManager {
   }
 
   start(room: Room, byPlayerId: PlayerId): void {
-    if (room.hostId !== byPlayerId) throw new RoomError('Only the host can start the game');
-    if (room.status !== 'lobby') throw new RoomError('That game has already started');
+    if (room.hostId !== byPlayerId)
+      throw new RoomError('not-host', 'Only the host can start the game');
+    if (room.status !== 'lobby')
+      throw new RoomError('already-started', 'That game has already started');
     if (room.seats.length < MIN_PLAYERS)
-      throw new RoomError(`Need at least ${MIN_PLAYERS} players to start`);
+      throw new RoomError('too-few-players', `Need at least ${MIN_PLAYERS} players to start`);
     this.deal(room);
   }
 
   /** Same seats and colours, new order and seed, straight into the deal. */
   rematch(room: Room, byPlayerId: PlayerId): void {
-    if (room.hostId !== byPlayerId) throw new RoomError('Only the host can start a rematch');
-    if (room.status !== 'finished') throw new RoomError('The game is not over yet');
+    if (room.hostId !== byPlayerId)
+      throw new RoomError('not-host', 'Only the host can start a rematch');
+    if (room.status !== 'finished') throw new RoomError('not-finished', 'The game is not over yet');
     this.deal(room);
   }
 
@@ -187,9 +201,10 @@ export class RoomManager {
    * On a rule violation the caller gets a RoomError and nothing else changes.
    */
   act(room: Room, playerId: PlayerId, action: Action): void {
-    if (!room.game || room.status === 'lobby') throw new RoomError('The game has not started');
+    if (!room.game || room.status === 'lobby')
+      throw new RoomError('not-started', 'The game has not started');
     const result = apply(room.game, playerId, action);
-    if (!result.ok) throw new RoomError(result.violation.message);
+    if (!result.ok) throw new RoomError(result.violation.code, result.violation.message);
     room.game = result.state;
     room.log.push({ playerId, action });
     if (result.state.phase === 'finished') room.status = 'finished';
@@ -253,10 +268,10 @@ export class RoomManager {
 function validateName(name: string): void {
   const trimmed = name.trim();
   if (trimmed.length < 1 || trimmed.length > 20)
-    throw new RoomError('Nickname must be 1 to 20 characters');
+    throw new RoomError('bad-name', 'Nickname must be 1 to 20 characters');
 }
 
 function validateColour(colour: string): asserts colour is PlayerColour {
   if (!(PLAYER_COLOURS as readonly string[]).includes(colour))
-    throw new RoomError('Pick one of the five train colours');
+    throw new RoomError('bad-colour', 'Pick one of the five train colours');
 }

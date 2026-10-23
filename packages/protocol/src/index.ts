@@ -30,7 +30,8 @@ export type ServerMessage =
   | { type: 'joined'; code: string; playerId: PlayerId; token: string; hostId: PlayerId }
   | { type: 'lobby'; code: string; hostId: PlayerId; players: LobbyPlayer[] }
   | { type: 'snapshot'; view: PlayerView; presence: Presence[] }
-  | { type: 'rejected'; reason: string }
+  /** `code` is stable for the client to branch on; `reason` is for people. */
+  | { type: 'rejected'; code: string; reason: string }
   | { type: 'error'; message: string };
 
 export function parseClientMessage(raw: string): ClientMessage | undefined {
