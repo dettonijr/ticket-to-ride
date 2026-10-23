@@ -50,4 +50,26 @@ describe('legalActions', () => {
     ]);
     expect(legalActions(redact(state, 'p2'))).toEqual([]);
   });
+
+  it('lists only the routes the current player can pay for and is allowed to take', () => {
+    const base = chooseAll(createGame(seats, 3));
+    const state: GameState = {
+      ...base,
+      claimed: { 'kansas-city-oklahoma-city-1': 'p2', 'new-york-boston-1': 'p2' },
+      players: base.players.map((p) =>
+        p.id === 'p1' ? { ...p, hand: ['green', 'green', 'locomotive'], trainsLeft: 2 } : p,
+      ),
+    };
+    const claim = legalActions(redact(state, 'p1')).find((a) => a.type === 'claimRoute');
+    if (!claim || claim.type !== 'claimRoute') throw new Error('expected claimRoute');
+    // Green or grey routes of length ≤ 2 (two trains left) that are open and whose twin is not
+    // closed by the two-player rule.
+    expect(claim.routes).toContain('duluth-omaha-1');
+    expect(claim.routes).toContain('saint-louis-chicago-1');
+    expect(claim.routes).not.toContain('kansas-city-oklahoma-city-2'); // twin closed
+    expect(claim.routes).not.toContain('new-york-boston-2'); // red, twin closed anyway
+    expect(claim.routes).not.toContain('denver-omaha-1'); // purple, length 4
+    expect(claim.routes).not.toContain('new-orleans-little-rock-1'); // green but length 3
+    expect(claim.routes.every((id) => !state.claimed[id])).toBe(true);
+  });
 });

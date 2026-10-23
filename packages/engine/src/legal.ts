@@ -1,4 +1,6 @@
 import { INITIAL_MIN_KEEP } from './apply';
+import { claimableRoutes } from './rules/claimRoute';
+import type { RouteId } from './state';
 import type { PlayerView } from './view';
 
 /**
@@ -14,7 +16,7 @@ export type LegalAction =
   | { type: 'chooseInitialTickets'; minKeep: number }
   | { type: 'drawFaceUp' }
   | { type: 'drawBlind' }
-  | { type: 'claimRoute' }
+  | { type: 'claimRoute'; routes: RouteId[] }
   | { type: 'drawTickets' };
 
 export function legalActions(view: PlayerView): LegalAction[] {
@@ -28,7 +30,7 @@ export function legalActions(view: PlayerView): LegalAction[] {
       return [
         { type: 'drawFaceUp' },
         { type: 'drawBlind' },
-        { type: 'claimRoute' },
+        { type: 'claimRoute', routes: claimableRoutes(view) },
         { type: 'drawTickets' },
       ];
     case 'drewOne':

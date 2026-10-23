@@ -1,7 +1,17 @@
 import type { ApplyResult } from '../apply';
-import { CITY_BY_ID, ROUTE_BY_ID } from '../data/usa';
-import { COLOURS, type Card, type Colour, type GameState, type PlayerState, type Route } from '../state';
+import { CITY_BY_ID, ROUTE_BY_ID, ROUTES } from '../data/usa';
+import {
+  COLOURS,
+  type Card,
+  type Colour,
+  type GameState,
+  type PlayerId,
+  type PlayerState,
+  type Route,
+  type RouteId,
+} from '../state';
 import { endTurn } from '../turn';
+import type { PlayerView } from '../view';
 
 /** Points for claiming a route, by its length in spaces. */
 export const ROUTE_POINTS: Readonly<Record<number, number>> = { 1: 1, 2: 2, 3: 4, 4: 7, 5: 10, 6: 15 };
@@ -45,32 +55,52 @@ export function claimOptions(hand: readonly Card[], route: Route): Card[][] {
   return options;
 }
 
-/** Can this player, holding this hand and these trains, claim this route at all? */
-export function canClaim(state: GameState, player: PlayerState, route: Route): boolean {
-  return claimValidation(state, player, route) === undefined;
+/** The public facts a route's availability depends on; both GameState and PlayerView have them. */
+export interface ClaimContext {
+  claimed: Readonly<Record<RouteId, PlayerId>>;
+  playerCount: number;
+  playerId: PlayerId;
+  trainsLeft: number;
 }
 
 /** The rule that stops a claim before cards are even considered, or undefined if none. */
-function claimValidation(
-  state: GameState,
-  player: PlayerState,
-  route: Route,
-): ApplyResult | undefined {
-  if (state.claimed[route.id] !== undefined)
+function claimValidation(ctx: ClaimContext, route: Route): ApplyResult | undefined {
+  if (ctx.claimed[route.id] !== undefined)
     return refuse('route-taken', 'That route has already been claimed');
   if (route.twinId !== undefined) {
-    const twinOwner = state.claimed[route.twinId];
-    if (twinOwner === player.id)
+    const twinOwner = ctx.claimed[route.twinId];
+    if (twinOwner === ctx.playerId)
       return refuse('own-twin', 'You already hold the other route between these cities');
-    if (twinOwner !== undefined && state.players.length <= TWIN_CLOSED_AT_OR_BELOW)
+    if (twinOwner !== undefined && ctx.playerCount <= TWIN_CLOSED_AT_OR_BELOW)
       return refuse(
         'twin-closed',
-        `With ${state.players.length} players only one of a double route can be claimed`,
+        `With ${ctx.playerCount} players only one of a double route can be claimed`,
       );
   }
-  if (player.trainsLeft < route.length)
+  if (ctx.trainsLeft < route.length)
     return refuse('not-enough-trains', `You need ${route.length} trains for that route`);
   return undefined;
+}
+
+/**
+ * Every route the viewer could claim right now with the cards in their hand,
+ * from their own view. The client uses it to light up the board; `claimRoute`
+ * re-checks everything on the server.
+ */
+export function claimableRoutes(view: PlayerView): RouteId[] {
+  if (view.phase !== 'turnStart' || view.currentPlayer !== view.me.id) return [];
+  const me = view.players.find((p) => p.id === view.me.id);
+  if (!me) return [];
+  const ctx: ClaimContext = {
+    claimed: view.claimed,
+    playerCount: view.players.length,
+    playerId: me.id,
+    trainsLeft: me.trainsLeft,
+  };
+  return ROUTES.filter(
+    (route) =>
+      claimValidation(ctx, route) === undefined && claimOptions(view.me.hand, route).length > 0,
+  ).map((route) => route.id);
 }
 
 export function claimRoute(
@@ -85,7 +115,15 @@ export function claimRoute(
   const route = ROUTE_BY_ID.get(routeId);
   if (!route) return refuse('unknown-route', 'There is no such route');
 
-  const blocked = claimValidation(state, player, route);
+  const blocked = claimValidation(
+    {
+      claimed: state.claimed,
+      playerCount: state.players.length,
+      playerId: player.id,
+      trainsLeft: player.trainsLeft,
+    },
+    route,
+  );
   if (blocked) return blocked;
 
   if (cards.length !== route.length)

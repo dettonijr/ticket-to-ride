@@ -13,6 +13,7 @@ export * from './rng';
 export * from './setup';
 export * from './view';
 export * from './turn';
+export * from './rules/claimRoute';
 export * from './apply';
 export * from './legal';
 export * from './data/usa';
