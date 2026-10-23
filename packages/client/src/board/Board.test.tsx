@@ -16,7 +16,10 @@ describe('Board', () => {
     );
     const route = getByTestId('route-new-york-boston-1');
     expect(route.classList.contains('route-claimed')).toBe(true);
-    expect(route.querySelectorAll('line')[1]?.getAttribute('stroke')).toBe('#dc2626');
+    const pieces = route.querySelectorAll('rect.piece');
+    expect(pieces).toHaveLength(2); // New York to Boston is two spaces long
+    expect(pieces[0]?.getAttribute('fill')).toBe('#d94848');
+    expect(route.querySelectorAll('circle.wheel').length).toBeGreaterThan(0);
   });
 
   it('only fires clicks on claimable routes', () => {
