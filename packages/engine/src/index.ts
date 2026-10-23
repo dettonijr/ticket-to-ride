@@ -13,6 +13,8 @@ export * from './rng';
 export * from './setup';
 export * from './view';
 export * from './turn';
+export * from './connectivity';
+export { TICKETS_PER_DRAW } from './rules/drawTickets';
 export * from './apply';
 export * from './legal';
 export * from './data/usa';

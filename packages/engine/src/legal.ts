@@ -1,4 +1,4 @@
-import { INITIAL_MIN_KEEP } from './apply';
+import { DRAW_MIN_KEEP, INITIAL_MIN_KEEP } from './apply';
 import type { PlayerView } from './view';
 
 /**
@@ -16,7 +16,8 @@ export type LegalAction =
   | { type: 'drawFaceUp'; indexes: number[] }
   | { type: 'drawBlind' }
   | { type: 'claimRoute' }
-  | { type: 'drawTickets' };
+  | { type: 'drawTickets' }
+  | { type: 'chooseTickets'; minKeep: number };
 
 /** The draw actions open to the current player, given whether this is the second draw. */
 function drawActions(view: PlayerView, secondDraw: boolean): LegalAction[] {
@@ -37,11 +38,18 @@ export function legalActions(view: PlayerView): LegalAction[] {
         : [];
     case 'turnStart':
       if (view.currentPlayer !== view.me.id) return [];
-      return [...drawActions(view, false), { type: 'claimRoute' }, { type: 'drawTickets' }];
+      return [
+        ...drawActions(view, false),
+        { type: 'claimRoute' },
+        ...(view.ticketDeckSize > 0 ? [{ type: 'drawTickets' } as const] : []),
+      ];
     case 'drewOne':
       if (view.currentPlayer !== view.me.id) return [];
       return drawActions(view, true);
     case 'choosingTickets':
+      return view.currentPlayer === view.me.id && view.me.pendingTickets.length > 0
+        ? [{ type: 'chooseTickets', minKeep: DRAW_MIN_KEEP }]
+        : [];
     case 'finished':
       return [];
   }

@@ -419,6 +419,34 @@ label.ticket {
   font-variant-numeric: tabular-nums;
 }
 
+.ticket.completed {
+  border-color: #2f855a;
+  background: #e6f4ec;
+}
+
+.ticket-status {
+  color: #2f855a;
+  font-weight: 700;
+  min-width: 1em;
+  text-align: center;
+}
+
+button.secondary {
+  font: inherit;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 button.card {
   font: inherit;
   cursor: pointer;
