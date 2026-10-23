@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
+import type { ClientMessage, ServerMessage } from './protocol';
 import { createServer, type RailyardServer } from './server';
 
 let server: RailyardServer;
@@ -17,6 +18,50 @@ afterAll(async () => {
   await server.close();
 });
 
+/** A test client that records every message and can wait for one by type. */
+class Client {
+  readonly messages: ServerMessage[] = [];
+  private waiters: Array<{ type: ServerMessage['type']; resolve: (m: ServerMessage) => void }> = [];
+  private readonly ws: WebSocket;
+
+  private constructor(ws: WebSocket) {
+    this.ws = ws;
+    ws.on('message', (raw) => {
+      const msg = JSON.parse(String(raw)) as ServerMessage;
+      this.messages.push(msg);
+      this.waiters = this.waiters.filter((w) => {
+        if (w.type !== msg.type) return true;
+        w.resolve(msg);
+        return false;
+      });
+    });
+  }
+
+  static async connect(): Promise<Client> {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    await new Promise<void>((done) => ws.on('open', done));
+    return new Client(ws);
+  }
+
+  send(msg: ClientMessage): void {
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  next<T extends ServerMessage['type']>(type: T): Promise<Extract<ServerMessage, { type: T }>> {
+    return new Promise((resolve) => {
+      this.waiters.push({ type, resolve: resolve as (m: ServerMessage) => void });
+    });
+  }
+
+  last<T extends ServerMessage['type']>(type: T): Extract<ServerMessage, { type: T }> | undefined {
+    return this.messages.filter((m) => m.type === type).at(-1) as never;
+  }
+
+  close(): void {
+    this.ws.close();
+  }
+}
+
 describe('server', () => {
   it('serves a Railyard page when the client is not built', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/`);
@@ -25,11 +70,104 @@ describe('server', () => {
   });
 
   it('answers a ping over the WebSocket', async () => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-    await new Promise<void>((done) => ws.on('open', done));
-    const reply = new Promise<string>((done) => ws.once('message', (m) => done(String(m))));
-    ws.send(JSON.stringify({ type: 'ping' }));
-    expect(JSON.parse(await reply)).toEqual({ type: 'pong' });
-    ws.close();
+    const c = await Client.connect();
+    const pong = c.next('pong');
+    c.send({ type: 'ping' });
+    expect(await pong).toEqual({ type: 'pong' });
+    c.close();
+  });
+
+  it('lets two players create, join and start, each receiving only their own hand', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'blue' });
+    const { code, playerId: annId, token } = await annJoined;
+    expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+    expect(token.length).toBeGreaterThan(10);
+
+    const bobJoined = bob.next('joined');
+    const annSeesBob = ann.next('lobby');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'red' });
+    const { playerId: bobId } = await bobJoined;
+    expect((await annSeesBob).players.map((p) => p.name)).toEqual(['Ann', 'Bob']);
+
+    const annSnap = ann.next('snapshot');
+    const bobSnap = bob.next('snapshot');
+    ann.send({ type: 'start' });
+    const [a, b] = await Promise.all([annSnap, bobSnap]);
+
+    expect(a.view.me.id).toBe(annId);
+    expect(b.view.me.id).toBe(bobId);
+    expect(a.view.me.hand).toHaveLength(4);
+    expect(a.view.me.pendingTickets).toHaveLength(3);
+    expect(a.view.faceUp).toHaveLength(5);
+    expect(a.view.players.map((p) => p.name).sort()).toEqual(['Ann', 'Bob']);
+    expect(JSON.stringify(a)).not.toContain(JSON.stringify(b.view.me.hand));
+    expect(JSON.stringify(b)).not.toContain(JSON.stringify(a.view.me.hand));
+    for (const other of a.view.players) {
+      expect(other).not.toHaveProperty('hand');
+      expect(other).not.toHaveProperty('tickets');
+    }
+
+    ann.close();
+    bob.close();
+  });
+
+  it('rejects bad joins and a non-host start with reasons', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'green' });
+    const { code } = await annJoined;
+
+    const r1 = bob.next('rejected');
+    bob.send({ type: 'join', code: 'ZZZZZZ', name: 'Bob', colour: 'red' });
+    expect((await r1).reason).toBe('No game with that code');
+
+    const r2 = bob.next('rejected');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'green' });
+    expect((await r2).reason).toBe('That colour is taken');
+
+    const r3 = bob.next('rejected');
+    bob.send({ type: 'join', code, name: 'ann', colour: 'red' });
+    expect((await r3).reason).toBe('That nickname is taken');
+
+    const joined = bob.next('joined');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'red' });
+    await joined;
+    const r4 = bob.next('rejected');
+    bob.send({ type: 'start' });
+    expect((await r4).reason).toBe('Only the host can start the game');
+
+    ann.close();
+    bob.close();
+  });
+
+  it('reconnects with a token after the socket drops', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'yellow' });
+    const { code } = await annJoined;
+    const bobJoined = bob.next('joined');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'black' });
+    const { token, playerId } = await bobJoined;
+    const snap = bob.next('snapshot');
+    ann.send({ type: 'start' });
+    await snap;
+
+    const annSeesDrop = ann.next('lobby');
+    bob.close();
+    expect((await annSeesDrop).players.find((p) => p.id === playerId)?.connected).toBe(false);
+
+    const bob2 = await Client.connect();
+    const again = bob2.next('snapshot');
+    bob2.send({ type: 'reconnect', token });
+    expect((await again).view.me.id).toBe(playerId);
+
+    ann.close();
+    bob2.close();
   });
 });
