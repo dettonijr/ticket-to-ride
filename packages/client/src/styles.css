@@ -1,0 +1,31 @@
+:root {
+  --bg: #f3f5f8;
+  --fg: #1b2230;
+  --muted: #5a6477;
+  --rule: #c9d0db;
+  --panel: #ffffff;
+  --accent: #1f5fb8;
+  font-family:
+    'IBM Plex Sans',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.home {
+  max-width: 640px;
+  margin: 10vh auto;
+  padding: 0 16px;
+}

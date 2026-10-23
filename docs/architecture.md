@@ -125,14 +125,14 @@ classDiagram
 
 ### 3.2 Actions
 
-| Action | Who | When |
-| --- | --- | --- |
-| `chooseInitialTickets { keep }` | each player | setup, keep at least 2 of 3 |
-| `drawFaceUp { index }` | current player | turn start, or second draw |
-| `drawBlind` | current player | turn start, or second draw |
-| `claimRoute { routeId, cards }` | current player | turn start |
-| `drawTickets` | current player | turn start |
-| `chooseTickets { keep }` | current player | after `drawTickets`, keep at least 1 |
+| Action                          | Who            | When                                 |
+| ------------------------------- | -------------- | ------------------------------------ |
+| `chooseInitialTickets { keep }` | each player    | setup, keep at least 2 of 3          |
+| `drawFaceUp { index }`          | current player | turn start, or second draw           |
+| `drawBlind`                     | current player | turn start, or second draw           |
+| `claimRoute { routeId, cards }` | current player | turn start                           |
+| `drawTickets`                   | current player | turn start                           |
+| `chooseTickets { keep }`        | current player | after `drawTickets`, keep at least 1 |
 
 ### 3.3 Turn state machine
 
