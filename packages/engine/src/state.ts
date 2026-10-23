@@ -54,8 +54,11 @@ export interface Ticket {
   points: number;
 }
 
-export type Phase =
-  'setup' | 'turnStart' | 'drewOne' | 'choosingTickets' | 'finalRound' | 'finished';
+/**
+ * Where the game is. The final round is not a phase: during it the turn
+ * phases keep cycling and `finalRoundTriggeredBy` / `turnsRemaining` are set.
+ */
+export type Phase = 'setup' | 'turnStart' | 'drewOne' | 'choosingTickets' | 'finished';
 
 export interface PlayerState {
   id: PlayerId;

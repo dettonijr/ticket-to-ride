@@ -33,7 +33,6 @@ export function legalActions(view: PlayerView): LegalAction[] {
       ];
     case 'drewOne':
     case 'choosingTickets':
-    case 'finalRound':
     case 'finished':
       return [];
   }
