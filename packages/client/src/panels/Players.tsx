@@ -23,7 +23,9 @@ export function Players({ view, presence }: { view: PlayerView; presence?: Prese
               <span className="name">
                 {p.name}
                 {p.id === view.me.id && <span className="tag">you</span>}
-                {current && <span className="tag">their turn</span>}
+                {current && (
+                  <span className="tag">{p.id === view.me.id ? 'your turn' : 'their turn'}</span>
+                )}
                 {waiting && <span className="tag">choosing</span>}
                 {!connected && <span className="tag">disconnected</span>}
               </span>

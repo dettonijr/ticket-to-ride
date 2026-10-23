@@ -278,17 +278,15 @@ button.link {
   pointer-events: none;
 }
 
+/* A claimable route keeps its own colour and gets a soft glow; hovering outlines it. */
 .route-claimable {
   cursor: pointer;
-}
-
-.route-claimable .route-edge {
-  stroke: var(--accent);
-  stroke-width: 12;
+  filter: drop-shadow(0 0 3px var(--accent));
 }
 
 .route-claimable:hover .route-edge {
-  stroke: var(--fg);
+  stroke: var(--accent);
+  stroke-width: 13;
 }
 
 .route-claimed .route-edge {
