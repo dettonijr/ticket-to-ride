@@ -1,4 +1,5 @@
 import { COLOURS, countCards, type Card } from '@railyard/engine';
+import { CardFace, cardClass } from './Card';
 
 const ORDER: Card[] = [...COLOURS, 'locomotive'];
 
@@ -17,8 +18,14 @@ export function Hand({ hand }: { hand: readonly Card[] }) {
       ) : (
         <ul className="hand">
           {groupHand(hand).map(({ card, count }) => (
-            <li key={card} className={`card card-${card}`} data-testid={`hand-${card}`}>
-              {card} <strong>×{count}</strong>
+            <li
+              key={card}
+              className={cardClass(card)}
+              data-testid={`hand-${card}`}
+              aria-label={`${count} ${card}`}
+              title={`${count} ${card}`}
+            >
+              <CardFace count={`×${count}`} />
             </li>
           ))}
         </ul>
