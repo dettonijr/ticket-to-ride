@@ -8,6 +8,8 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ENGINE_NAME } from '@railyard/engine';
+import { parseClientMessage, type ServerMessage } from './protocol';
+import { RoomError, RoomManager, type Outbox, type Room, type Seat } from './rooms';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -23,12 +25,14 @@ const MIME: Record<string, string> = {
 export interface RailyardServer {
   httpServer: ReturnType<typeof createHttpServer>;
   wss: WebSocketServer;
+  rooms: RoomManager;
   close(): Promise<void>;
 }
 
 export interface ServerOptions {
   /** Directory of built client assets. Defaults to the client's dist folder. */
   staticDir?: string;
+  rooms?: RoomManager;
 }
 
 function defaultStaticDir(): string {
@@ -59,8 +63,68 @@ function serveStatic(staticDir: string, req: IncomingMessage, res: ServerRespons
   createReadStream(file).pipe(res);
 }
 
+/** One connected browser: its socket and, once seated, its room and seat. */
+class Connection implements Outbox {
+  room: Room | undefined;
+  seat: Seat | undefined;
+
+  constructor(
+    private readonly socket: WebSocket,
+    private readonly rooms: RoomManager,
+  ) {}
+
+  send(message: ServerMessage): void {
+    if (this.socket.readyState === this.socket.OPEN) this.socket.send(JSON.stringify(message));
+  }
+
+  handle(raw: string): void {
+    const msg = parseClientMessage(raw);
+    if (!msg) {
+      this.send({ type: 'error', message: 'unknown message' });
+      return;
+    }
+    try {
+      switch (msg.type) {
+        case 'ping':
+          this.send({ type: 'pong' });
+          return;
+        case 'create':
+          this.seatAt(this.rooms.create(msg.name, msg.colour, this));
+          return;
+        case 'join':
+          this.seatAt(this.rooms.join(msg.code, msg.name, msg.colour, this));
+          return;
+        case 'reconnect':
+          this.seatAt(this.rooms.reconnect(msg.token, this));
+          return;
+        case 'start':
+          if (!this.room || !this.seat) throw new RoomError('Join a game first');
+          this.rooms.start(this.room, this.seat.id);
+          return;
+      }
+    } catch (err) {
+      if (err instanceof RoomError) {
+        this.send({ type: 'rejected', reason: err.message });
+        return;
+      }
+      throw err;
+    }
+  }
+
+  closed(): void {
+    if (this.seat) this.rooms.disconnect(this.seat, this);
+  }
+
+  private seatAt(placed: { room: Room; seat: Seat }): void {
+    if (this.seat && this.seat !== placed.seat) this.rooms.disconnect(this.seat, this);
+    this.room = placed.room;
+    this.seat = placed.seat;
+  }
+}
+
 export function createServer(options: ServerOptions = {}): RailyardServer {
   const staticDir = options.staticDir ?? defaultStaticDir();
+  const rooms = options.rooms ?? new RoomManager();
 
   const httpServer = createHttpServer((req, res) => {
     if (req.url === '/healthz') {
@@ -73,25 +137,22 @@ export function createServer(options: ServerOptions = {}): RailyardServer {
 
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   wss.on('connection', (socket: WebSocket) => {
+    const connection = new Connection(socket, rooms);
     socket.on('message', (raw) => {
-      let msg: unknown;
       try {
-        msg = JSON.parse(String(raw));
-      } catch {
-        socket.send(JSON.stringify({ type: 'error', message: 'invalid JSON' }));
-        return;
+        connection.handle(String(raw));
+      } catch (err) {
+        console.error('unhandled error for message', err);
+        connection.send({ type: 'error', message: 'server error' });
       }
-      if (typeof msg === 'object' && msg !== null && (msg as { type?: unknown }).type === 'ping') {
-        socket.send(JSON.stringify({ type: 'pong' }));
-        return;
-      }
-      socket.send(JSON.stringify({ type: 'error', message: 'unknown message' }));
     });
+    socket.on('close', () => connection.closed());
   });
 
   return {
     httpServer,
     wss,
+    rooms,
     close: () =>
       new Promise<void>((resolveClose) => {
         for (const client of wss.clients) client.terminate();
