@@ -240,4 +240,66 @@ describe('server', () => {
     bob.close();
     stranger.close();
   });
+
+  it('lets the current player draw tickets and keep one; others see the count, never the ticket', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'blue' });
+    const { code } = await annJoined;
+    const bobJoined = bob.next('joined');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'red' });
+    await bobJoined;
+    const annSnap = ann.next('snapshot');
+    const bobSnap = bob.next('snapshot');
+    ann.send({ type: 'start' });
+    const [a0, b0] = await Promise.all([annSnap, bobSnap]);
+
+    // Everyone keeps all three initial tickets.
+    for (const [c, snap] of [
+      [ann, a0],
+      [bob, b0],
+    ] as const) {
+      const seen = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
+      c.send({
+        type: 'action',
+        action: {
+          type: 'chooseInitialTickets',
+          keep: snap.view.me.pendingTickets.map((t) => t.id),
+        },
+      });
+      await seen;
+    }
+    const started = ann.last('snapshot')!.view;
+    expect(started.phase).toBe('turnStart');
+    const current = started.currentPlayer === a0.view.me.id ? ann : bob;
+    const other = current === ann ? bob : ann;
+
+    const drawnByCurrent = current.next('snapshot');
+    const drawnSeenByOther = other.next('snapshot');
+    current.send({ type: 'action', action: { type: 'drawTickets' } });
+    const [c1, o1] = await Promise.all([drawnByCurrent, drawnSeenByOther]);
+    expect(c1.view.phase).toBe('choosingTickets');
+    expect(c1.view.me.pendingTickets).toHaveLength(3);
+    expect(o1.view.me.pendingTickets).toHaveLength(0);
+    for (const t of c1.view.me.pendingTickets) {
+      expect(JSON.stringify(o1.view)).not.toContain(t.id);
+    }
+
+    const keptId = c1.view.me.pendingTickets[1]!.id;
+    const chosenByCurrent = current.next('snapshot');
+    const chosenSeenByOther = other.next('snapshot');
+    current.send({ type: 'action', action: { type: 'chooseTickets', keep: [keptId] } });
+    const [c2, o2] = await Promise.all([chosenByCurrent, chosenSeenByOther]);
+    expect(c2.view.phase).toBe('turnStart');
+    expect(c2.view.currentPlayer).toBe(o2.view.me.id);
+    expect(c2.view.me.tickets).toHaveLength(4);
+    const me = o2.view.players.find((p) => p.id === c2.view.me.id)!;
+    expect(me.ticketCount).toBe(4);
+    expect(JSON.stringify(o2.view)).not.toContain(keptId);
+    expect(o2.view.lastAction?.description).toMatch(/drew tickets and kept 1$/);
+
+    ann.close();
+    bob.close();
+  });
 });
