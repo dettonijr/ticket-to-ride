@@ -3,6 +3,7 @@ import { client, useClientState } from './ws';
 import { Home } from './screens/Home';
 import { Lobby } from './screens/Lobby';
 import { Game } from './screens/Game';
+import { Summary } from './screens/Summary';
 
 export function App() {
   const state = useClientState();
@@ -23,6 +24,7 @@ export function App() {
   }
 
   if (state.view && state.playerId) {
+    if (state.view.phase === 'finished') return <Summary view={state.view} />;
     return <Game view={state.view} rejection={state.rejection} />;
   }
 
