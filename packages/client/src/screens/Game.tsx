@@ -1,5 +1,14 @@
-import { legalActions, type PlayerColour, type PlayerId, type PlayerView } from '@railyard/engine';
+import { useState } from 'react';
+import {
+  legalActions,
+  ROUTE_BY_ID,
+  type PlayerColour,
+  type PlayerId,
+  type PlayerView,
+  type RouteId,
+} from '@railyard/engine';
 import { Board } from '../board/Board';
+import { ClaimDialog } from '../panels/ClaimDialog';
 import { Hand } from '../panels/Hand';
 import { Players } from '../panels/Players';
 import { Table } from '../panels/Table';
@@ -16,6 +25,10 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
   const canDrawTickets = legal.some((a) => a.type === 'drawTickets');
   const faceUpIndexes = legal.find((a) => a.type === 'drawFaceUp')?.indexes ?? [];
   const canDrawBlind = legal.some((a) => a.type === 'drawBlind');
+  const claim = legal.find((a) => a.type === 'claimRoute');
+  const claimable = new Set<RouteId>(claim && claim.type === 'claimRoute' ? claim.routes : []);
+  const [claiming, setClaiming] = useState<RouteId | undefined>();
+  const claimingRoute = claiming && claimable.has(claiming) ? ROUTE_BY_ID.get(claiming) : undefined;
   const myTurn = view.phase !== 'setup' && view.currentPlayer === view.me.id;
   const secondDraw = myTurn && view.phase === 'drewOne';
   const waitingNames = view.waitingOn
@@ -61,7 +74,27 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
             {rejection}
           </p>
         )}
-        <Board claimed={view.claimed} playerColours={playerColours} />
+        {claimingRoute && (
+          <ClaimDialog
+            key={claimingRoute.id}
+            route={claimingRoute}
+            hand={view.me.hand}
+            onClaim={(cards) => {
+              client.send({
+                type: 'action',
+                action: { type: 'claimRoute', routeId: claimingRoute.id, cards },
+              });
+              setClaiming(undefined);
+            }}
+            onCancel={() => setClaiming(undefined)}
+          />
+        )}
+        <Board
+          claimed={view.claimed}
+          playerColours={playerColours}
+          claimable={claimable}
+          onRouteClick={setClaiming}
+        />
       </section>
       <aside className="sidebar">
         <Players view={view} />

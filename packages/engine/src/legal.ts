@@ -1,21 +1,20 @@
 import { DRAW_MIN_KEEP, INITIAL_MIN_KEEP } from './apply';
+import { claimableRoutes } from './rules/claimRoute';
+import type { RouteId } from './state';
 import type { PlayerView } from './view';
 
 /**
  * What the viewer may do right now, computed from their own view so the
  * client can enable controls without the server. The server still has the
  * final say through `apply`.
- *
- * Entries for `drawFaceUp`, `drawBlind`, `claimRoute` and `drawTickets` are
- * candidates by phase only until their rules land; later tickets add the
- * per-action constraints (which face-up indexes, which routes, and so on).
  */
 export type LegalAction =
   | { type: 'chooseInitialTickets'; minKeep: number }
   /** Which face-up slots may be taken right now. */
   | { type: 'drawFaceUp'; indexes: number[] }
   | { type: 'drawBlind' }
-  | { type: 'claimRoute' }
+  /** Routes the viewer can legally claim and pay for from their hand. */
+  | { type: 'claimRoute'; routes: RouteId[] }
   | { type: 'drawTickets' }
   | { type: 'chooseTickets'; minKeep: number };
 
@@ -40,7 +39,7 @@ export function legalActions(view: PlayerView): LegalAction[] {
       if (view.currentPlayer !== view.me.id) return [];
       return [
         ...drawActions(view, false),
-        { type: 'claimRoute' },
+        { type: 'claimRoute', routes: claimableRoutes(view) },
         ...(view.ticketDeckSize > 0 ? [{ type: 'drawTickets' } as const] : []),
       ];
     case 'drewOne':

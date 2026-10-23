@@ -1,4 +1,5 @@
 import type { Action, RuleViolation } from './actions';
+import { claimRoute } from './rules/claimRoute';
 import { drawBlind, drawFaceUp } from './rules/drawCards';
 import { chooseTickets, drawTickets } from './rules/drawTickets';
 import { INITIAL_TICKETS, type GameState, type PlayerId, type PlayerState } from './state';
@@ -21,29 +22,22 @@ export function apply(state: GameState, playerId: PlayerId, action: Action): App
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return refuse('unknown-player', 'You are not in this game');
 
+  if (action.type !== 'chooseInitialTickets' && state.phase === 'setup')
+    return refuse('wrong-phase', 'Everyone has to choose their tickets first');
+
   switch (action.type) {
     case 'chooseInitialTickets':
       return chooseInitialTickets(state, player, action.keep);
-    case 'drawTickets':
-      if (state.phase === 'setup')
-        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
-      return drawTickets(state, player);
-    case 'chooseTickets':
-      if (state.phase === 'setup')
-        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
-      return chooseTickets(state, player, action.keep);
     case 'drawFaceUp':
-      if (state.phase === 'setup')
-        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
       return drawFaceUp(state, player, action.index);
     case 'drawBlind':
-      if (state.phase === 'setup')
-        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
       return drawBlind(state, player);
     case 'claimRoute':
-      if (state.phase === 'setup')
-        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
-      return refuse('not-implemented', `${action.type} is not implemented yet`);
+      return claimRoute(state, player, action.routeId, action.cards);
+    case 'drawTickets':
+      return drawTickets(state, player);
+    case 'chooseTickets':
+      return chooseTickets(state, player, action.keep);
   }
 }
 
