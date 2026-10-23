@@ -1,4 +1,13 @@
-import type { Card, GameState, Phase, PlayerColour, PlayerId, RouteId, Ticket } from './state';
+import type {
+  Card,
+  GameState,
+  LastAction,
+  Phase,
+  PlayerColour,
+  PlayerId,
+  RouteId,
+  Ticket,
+} from './state';
 
 /** What a table shows about every player. */
 export interface PublicPlayer {
@@ -29,6 +38,9 @@ export interface PlayerView {
   ticketDeckSize: number;
   claimed: Record<RouteId, PlayerId>;
   finalRoundTriggeredBy?: PlayerId;
+  lastAction?: LastAction;
+  /** Ids of players who still have to choose tickets, so the client can show who is waited on. */
+  waitingOn: PlayerId[];
 }
 
 /** Build the view for one player: their own private cards plus public info. */
@@ -59,9 +71,13 @@ export function redact(state: GameState, playerId: PlayerId): PlayerView {
     discardSize: state.discard.length,
     ticketDeckSize: state.ticketDeck.length,
     claimed: { ...state.claimed },
+    waitingOn: state.players.filter((p) => p.pendingTickets.length > 0).map((p) => p.id),
   };
   if (state.finalRoundTriggeredBy !== undefined) {
     view.finalRoundTriggeredBy = state.finalRoundTriggeredBy;
+  }
+  if (state.lastAction !== undefined) {
+    view.lastAction = { ...state.lastAction };
   }
   return view;
 }

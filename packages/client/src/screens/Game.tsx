@@ -1,61 +1,64 @@
-import type { PlayerColour, PlayerId, PlayerView } from '@railyard/engine';
-import { Board, PLAYER_FILL } from '../board/Board';
+import { legalActions, type PlayerColour, type PlayerId, type PlayerView } from '@railyard/engine';
+import { Board } from '../board/Board';
+import { Hand } from '../panels/Hand';
+import { Players } from '../panels/Players';
+import { Table } from '../panels/Table';
+import { TicketChoice } from '../panels/TicketChoice';
+import { Tickets } from '../panels/Tickets';
+import { client } from '../ws';
 
-export function Game({ view }: { view: PlayerView }) {
+export function Game({ view, rejection }: { view: PlayerView; rejection?: string | undefined }) {
   const playerColours: Record<PlayerId, PlayerColour> = {};
   for (const p of view.players) playerColours[p.id] = p.colour;
-  const me = view.players.find((p) => p.id === view.me.id);
+  const legal = legalActions(view);
+  const ticketChoice = legal.find((a) => a.type === 'chooseInitialTickets');
+  const canDraw = legal.some((a) => a.type === 'drawFaceUp' || a.type === 'drawBlind');
+  const myTurn = view.phase !== 'setup' && view.currentPlayer === view.me.id;
+  const waitingNames = view.waitingOn
+    .filter((id) => id !== view.me.id)
+    .map((id) => view.players.find((p) => p.id === id)?.name ?? id);
+
   return (
     <main className="game">
       <section className="board-wrap">
+        {ticketChoice && (
+          <TicketChoice
+            key="initial"
+            tickets={view.me.pendingTickets}
+            minKeep={ticketChoice.minKeep}
+            onKeep={(keep) =>
+              client.send({ type: 'action', action: { type: 'chooseInitialTickets', keep } })
+            }
+          />
+        )}
+        {view.phase === 'setup' && !ticketChoice && (
+          <p className="banner" role="status">
+            Waiting for {waitingNames.join(', ')} to choose tickets.
+          </p>
+        )}
+        {myTurn && (
+          <p className="banner" role="status">
+            Your turn.
+          </p>
+        )}
+        {rejection && (
+          <p className="rejection" role="alert">
+            {rejection}
+          </p>
+        )}
         <Board claimed={view.claimed} playerColours={playerColours} />
       </section>
       <aside className="sidebar">
-        <h2>Players</h2>
-        <ol className="player-list">
-          {view.turnOrder.map((id) => {
-            const p = view.players.find((x) => x.id === id);
-            if (!p) return null;
-            const current = view.currentPlayer === id;
-            return (
-              <li key={id} className={current ? 'current' : ''}>
-                <span
-                  className="swatch"
-                  style={{ background: PLAYER_FILL[p.colour] }}
-                  aria-hidden
-                />
-                <span className="name">
-                  {p.name}
-                  {p.id === view.me.id && <span className="tag">you</span>}
-                </span>
-                <span className="stats">
-                  {p.score} pts · {p.trainsLeft} trains · {p.handSize} cards · {p.ticketCount}{' '}
-                  tickets
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-        <h2>Table</h2>
-        <p className="muted">
-          Deck {view.trainDeckSize} · Discard {view.discardSize} · Tickets {view.ticketDeckSize}
-        </p>
-        <ul className="face-up">
-          {view.faceUp.map((card, i) => (
-            <li key={i} className={`card card-${card}`}>
-              {card}
-            </li>
-          ))}
-        </ul>
-        <h2>Your hand ({me?.handSize ?? view.me.hand.length})</h2>
-        <ul className="hand">
-          {view.me.hand.map((card, i) => (
-            <li key={i} className={`card card-${card}`}>
-              {card}
-            </li>
-          ))}
-        </ul>
-        <p className="muted">Phase: {view.phase}</p>
+        <Players view={view} />
+        <Table
+          faceUp={view.faceUp}
+          trainDeckSize={view.trainDeckSize}
+          discardSize={view.discardSize}
+          ticketDeckSize={view.ticketDeckSize}
+          canDraw={canDraw}
+        />
+        <Hand hand={view.me.hand} />
+        <Tickets tickets={view.me.tickets} />
       </aside>
     </main>
   );

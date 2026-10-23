@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { apply } from './apply';
 import { createGame } from './setup';
 import { redact } from './view';
 
@@ -49,5 +50,35 @@ describe('redact', () => {
 
   it('rejects an unknown player', () => {
     expect(() => redact(createGame(seats, 1), 'nobody')).toThrow();
+  });
+
+  it('never leaks another player’s hand or tickets, in setup or once play starts', () => {
+    let state = createGame(seats, 11);
+    const check = () => {
+      for (const viewer of state.players) {
+        const view = redact(state, viewer.id);
+        const text = JSON.stringify(view);
+        for (const other of state.players) {
+          if (other.id === viewer.id) continue;
+          for (const t of [...other.tickets, ...other.pendingTickets]) {
+            expect(text).not.toContain(`"${t.id}"`);
+          }
+          expect(text).not.toContain(JSON.stringify(other.hand));
+        }
+      }
+    };
+    check();
+    for (const p of state.players) {
+      const result = apply(state, p.id, {
+        type: 'chooseInitialTickets',
+        keep: p.pendingTickets.slice(0, 2).map((t) => t.id),
+      });
+      if (!result.ok) throw new Error(result.violation.message);
+      state = result.state;
+      check();
+    }
+    expect(state.phase).toBe('turnStart');
+    expect(redact(state, 'p1').waitingOn).toEqual([]);
+    expect(redact(state, 'p1').lastAction?.description).toBe('Bob kept 2 tickets');
   });
 });

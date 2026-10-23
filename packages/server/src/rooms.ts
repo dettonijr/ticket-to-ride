@@ -1,16 +1,18 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import {
+  apply,
   createGame,
   MAX_PLAYERS,
   MIN_PLAYERS,
   PLAYER_COLOURS,
   redact,
+  type Action,
   type GameState,
   type LoggedAction,
   type PlayerColour,
   type PlayerId,
 } from '@railyard/engine';
-import type { LobbyPlayer, ServerMessage } from './protocol';
+import type { LobbyPlayer, ServerMessage } from '@railyard/protocol';
 
 /** Something that can receive server messages: a socket, or a test double. */
 export interface Outbox {
@@ -163,6 +165,21 @@ export class RoomManager {
       this.randomSeed(),
     );
     room.status = 'playing';
+    this.broadcastSnapshots(room);
+  }
+
+  /**
+   * Run one player's action through the engine. On success the action joins
+   * the room's log, the state is replaced and everyone gets a fresh snapshot.
+   * On a rule violation the caller gets a RoomError and nothing else changes.
+   */
+  act(room: Room, playerId: PlayerId, action: Action): void {
+    if (!room.game || room.status === 'lobby') throw new RoomError('The game has not started');
+    const result = apply(room.game, playerId, action);
+    if (!result.ok) throw new RoomError(result.violation.message);
+    room.game = result.state;
+    room.log.push({ playerId, action });
+    if (result.state.phase === 'finished') room.status = 'finished';
     this.broadcastSnapshots(room);
   }
 

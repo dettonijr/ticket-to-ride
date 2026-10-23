@@ -23,7 +23,7 @@ export function App() {
   }
 
   if (state.view && state.playerId) {
-    return <Game view={state.view} />;
+    return <Game view={state.view} rejection={state.rejection} />;
   }
 
   if (state.code && state.playerId && state.hostId && state.lobby) {

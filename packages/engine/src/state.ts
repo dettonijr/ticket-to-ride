@@ -69,11 +69,18 @@ export interface PlayerState {
   score: number;
 }
 
+/** What the table saw happen last: who acted and a public one-line description. */
+export interface LastAction {
+  playerId: PlayerId;
+  description: string;
+}
+
 export interface GameState {
   seed: number;
   rng: RngState;
   phase: Phase;
   players: PlayerState[];
+  lastAction?: LastAction;
   /** Player ids in play order. */
   turnOrder: PlayerId[];
   currentPlayer: PlayerId;

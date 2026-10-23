@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage } from './protocol';
+import type { ClientMessage, ServerMessage } from '@railyard/protocol';
 import { createServer, type RailyardServer } from './server';
 
 let server: RailyardServer;
@@ -169,5 +169,75 @@ describe('server', () => {
 
     ann.close();
     bob2.close();
+  });
+
+  it('runs actions through the engine: ticket choices reach turnStart and bad ones are rejected', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'blue' });
+    const { code } = await annJoined;
+    const bobJoined = bob.next('joined');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'red' });
+    await bobJoined;
+    const annSnap = ann.next('snapshot');
+    const bobSnap = bob.next('snapshot');
+    ann.send({ type: 'start' });
+    const [a0, b0] = await Promise.all([annSnap, bobSnap]);
+    expect(a0.view.phase).toBe('setup');
+
+    // Bob tries to keep only one ticket: rejected, and only Bob hears about it.
+    const bobRejected = bob.next('rejected');
+    bob.send({
+      type: 'action',
+      action: { type: 'chooseInitialTickets', keep: [b0.view.me.pendingTickets[0]!.id] },
+    });
+    expect((await bobRejected).reason).toBe('Keep at least 2 of your 3 tickets');
+    expect(ann.messages.filter((m) => m.type === 'rejected')).toHaveLength(0);
+
+    // Both choose properly; everyone sees the phase advance and nobody sees the other's tickets.
+    const annSees = ann.next('snapshot');
+    const bobSees = bob.next('snapshot');
+    bob.send({
+      type: 'action',
+      action: {
+        type: 'chooseInitialTickets',
+        keep: b0.view.me.pendingTickets.slice(0, 2).map((t) => t.id),
+      },
+    });
+    const [a1, b1] = await Promise.all([annSees, bobSees]);
+    expect(a1.view.phase).toBe('setup');
+    expect(a1.view.waitingOn).toEqual([a1.view.me.id]);
+    expect(b1.view.me.tickets).toHaveLength(2);
+    expect(JSON.stringify(a1.view)).not.toContain(b1.view.me.tickets[0]!.id);
+
+    const annSees2 = ann.next('snapshot');
+    const bobSees2 = bob.next('snapshot');
+    ann.send({
+      type: 'action',
+      action: {
+        type: 'chooseInitialTickets',
+        keep: a0.view.me.pendingTickets.map((t) => t.id),
+      },
+    });
+    const [a2, b2] = await Promise.all([annSees2, bobSees2]);
+    expect(a2.view.phase).toBe('turnStart');
+    expect(b2.view.phase).toBe('turnStart');
+    expect(b2.view.lastAction).toEqual({
+      playerId: a2.view.me.id,
+      description: 'Ann kept 3 tickets',
+    });
+    expect(JSON.stringify(b2.view)).not.toContain(a2.view.me.tickets[0]!.id);
+    expect(JSON.stringify(b2.view)).not.toContain(JSON.stringify(a2.view.me.hand));
+
+    // An action before joining is refused.
+    const stranger = await Client.connect();
+    const refused = stranger.next('rejected');
+    stranger.send({ type: 'action', action: { type: 'drawBlind' } });
+    expect((await refused).reason).toBe('Join a game first');
+
+    ann.close();
+    bob.close();
+    stranger.close();
   });
 });

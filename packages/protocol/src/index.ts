@@ -1,4 +1,4 @@
-import type { PlayerColour, PlayerId, PlayerView } from '@railyard/engine';
+import type { Action, Card, PlayerColour, PlayerId, PlayerView } from '@railyard/engine';
 
 /** Messages a browser sends to the server. */
 export type ClientMessage =
@@ -6,7 +6,8 @@ export type ClientMessage =
   | { type: 'create'; name: string; colour: PlayerColour }
   | { type: 'join'; code: string; name: string; colour: PlayerColour }
   | { type: 'reconnect'; token: string }
-  | { type: 'start' };
+  | { type: 'start' }
+  | { type: 'action'; action: Action };
 
 export interface LobbyPlayer {
   id: PlayerId;
@@ -57,6 +58,36 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     case 'reconnect':
       if (typeof m['token'] === 'string') return { type: 'reconnect', token: m['token'] };
       return undefined;
+    case 'action': {
+      const action = parseAction(m['action']);
+      return action ? { type: 'action', action } : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string');
+}
+
+/** Check the shape of an action; the engine checks whether it is allowed. */
+export function parseAction(value: unknown): Action | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const a = value as Record<string, unknown>;
+  switch (a['type']) {
+    case 'chooseInitialTickets':
+    case 'chooseTickets':
+      return isStringArray(a['keep']) ? { type: a['type'], keep: a['keep'] } : undefined;
+    case 'drawFaceUp':
+      return typeof a['index'] === 'number' ? { type: 'drawFaceUp', index: a['index'] } : undefined;
+    case 'drawBlind':
+    case 'drawTickets':
+      return { type: a['type'] };
+    case 'claimRoute':
+      return typeof a['routeId'] === 'string' && isStringArray(a['cards'])
+        ? { type: 'claimRoute', routeId: a['routeId'], cards: a['cards'] as Card[] }
+        : undefined;
     default:
       return undefined;
   }

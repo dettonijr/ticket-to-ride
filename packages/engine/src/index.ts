@@ -12,4 +12,6 @@ export * from './actions';
 export * from './rng';
 export * from './setup';
 export * from './view';
+export * from './apply';
+export * from './legal';
 export * from './data/usa';

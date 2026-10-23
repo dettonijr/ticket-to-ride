@@ -8,7 +8,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ENGINE_NAME } from '@railyard/engine';
-import { parseClientMessage, type ServerMessage } from './protocol';
+import { parseClientMessage, type ServerMessage } from '@railyard/protocol';
 import { RoomError, RoomManager, type Outbox, type Room, type Seat } from './rooms';
 
 const MIME: Record<string, string> = {
@@ -100,6 +100,10 @@ class Connection implements Outbox {
         case 'start':
           if (!this.room || !this.seat) throw new RoomError('Join a game first');
           this.rooms.start(this.room, this.seat.id);
+          return;
+        case 'action':
+          if (!this.room || !this.seat) throw new RoomError('Join a game first');
+          this.rooms.act(this.room, this.seat.id, msg.action);
           return;
       }
     } catch (err) {
