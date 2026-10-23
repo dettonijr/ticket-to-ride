@@ -1,0 +1,14 @@
+.git
+.github
+.claude
+.scratch
+node_modules
+**/node_modules
+**/dist
+coverage
+docs
+*.md
+!README.md
+Dockerfile
+.dockerignore
+.env

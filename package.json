@@ -1,0 +1,34 @@
+{
+  "name": "railyard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Online Ticket to Ride for friends: pure engine, Node server, React client.",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream dev",
+    "build": "pnpm --filter @railyard/client build && pnpm --filter @railyard/server build",
+    "start": "node packages/server/dist/index.js",
+    "test": "pnpm -r --stream test",
+    "typecheck": "pnpm -r --stream typecheck",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.6.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

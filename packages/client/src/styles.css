@@ -1,0 +1,551 @@
+:root {
+  --bg: #f3f5f8;
+  --fg: #1b2230;
+  --muted: #5a6477;
+  --rule: #c9d0db;
+  --panel: #ffffff;
+  --accent: #1f5fb8;
+  --accent-soft: #dce8f8;
+  --board-bg: #ebe4d3;
+  --danger: #b42318;
+  font-family:
+    'IBM Plex Sans',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 2rem;
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 16px 0 6px;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Home and lobby */
+
+.home {
+  max-width: 480px;
+  margin: 8vh auto;
+  padding: 0 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 20px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs button[aria-selected='true'] {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input[type='text'],
+input:not([type]) {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+}
+
+.colours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.colours legend {
+  font-size: 0.9rem;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  cursor: pointer;
+  text-transform: capitalize;
+  color: var(--fg);
+}
+
+.colour.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.colour input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.colour:has(input:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+button.primary {
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.rejection {
+  color: var(--danger);
+  margin: 0;
+}
+
+.join-code {
+  font-family: 'IBM Plex Mono', Menlo, Consolas, monospace;
+  font-size: 2.4rem;
+  letter-spacing: 0.3em;
+  margin: 8px 0 16px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.player-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.player-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.player-list li.current {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.player-list li.disconnected {
+  opacity: 0.6;
+}
+
+.player-list .name {
+  flex: 1;
+}
+
+.player-list .stats {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-left: 6px;
+}
+
+/* Game */
+
+.game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  padding: 16px;
+  min-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .game {
+    grid-template-columns: 1fr;
+  }
+}
+
+.board-wrap {
+  min-width: 0;
+}
+
+.board {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+
+.board-bg {
+  fill: var(--board-bg);
+}
+
+.route-edge {
+  stroke: #4a5568;
+}
+
+.route-length {
+  font-size: 12px;
+  fill: #2d3748;
+  pointer-events: none;
+}
+
+/* A claimable route keeps its own colour and gets a soft glow; hovering outlines it. */
+.route-claimable {
+  cursor: pointer;
+  filter: drop-shadow(0 0 3px var(--accent));
+}
+
+.route-claimable:hover .route-edge {
+  stroke: var(--accent);
+  stroke-width: 13;
+}
+
+.route-claimed .route-edge {
+  stroke: var(--fg);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.city-dot {
+  fill: #fff;
+  stroke: #2d3748;
+  stroke-width: 2;
+}
+
+.city-label {
+  font-size: 13px;
+  font-weight: 600;
+  fill: #1a202c;
+  pointer-events: none;
+}
+
+.sidebar {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.face-up,
+.hand {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.card {
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+  color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  min-width: 64px;
+  text-align: center;
+}
+
+.card-purple {
+  background: #8e44ad;
+}
+.card-blue {
+  background: #2b6cb0;
+}
+.card-orange {
+  background: #dd6b20;
+}
+.card-white {
+  background: #f1f3f5;
+  color: #1b2230;
+}
+.card-green {
+  background: #2f855a;
+}
+.card-yellow {
+  background: #d69e2e;
+  color: #1b2230;
+}
+.card-black {
+  background: #1a202c;
+}
+.card-red {
+  background: #c53030;
+}
+.card-locomotive {
+  background: linear-gradient(135deg, #c53030, #d69e2e, #2f855a, #2b6cb0, #8e44ad);
+}
+
+/* Game panels */
+
+.banner {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+}
+
+.dialog {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 0 0 12px;
+  max-width: 520px;
+}
+
+.ticket-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.ticket {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  cursor: default;
+}
+
+label.ticket {
+  cursor: pointer;
+}
+
+.ticket.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ticket-cities {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ticket-points {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket.completed {
+  border-color: #2f855a;
+  background: #e6f4ec;
+}
+
+.ticket-status {
+  color: #2f855a;
+  font-weight: 700;
+  min-width: 1em;
+  text-align: center;
+}
+
+button.secondary {
+  font: inherit;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.card {
+  font: inherit;
+  cursor: pointer;
+}
+
+button.card:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.card-deck {
+  background: var(--muted);
+}
+
+.last-action {
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* Summary */
+
+.banner.final-round {
+  background: #fdf2e9;
+  border-left-color: #c2410c;
+}
+
+.summary .ranking .rank {
+  font-weight: 600;
+  min-width: 1.5em;
+}
+
+.tag.winner {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+
+.breakdown {
+  border-collapse: collapse;
+  min-width: 420px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdown th,
+.breakdown td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.breakdown thead th {
+  font-weight: 600;
+}
+
+.breakdown tbody th {
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.breakdown .total-row td,
+.breakdown .total-row th {
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.summary-tickets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.summary .rematch {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 16px;
+}

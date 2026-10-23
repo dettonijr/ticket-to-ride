@@ -1,0 +1,22 @@
+{
+  "name": "@railyard/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Message types shared by the server and the client, plus the pure parser.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@railyard/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

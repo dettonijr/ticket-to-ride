@@ -1,0 +1,140 @@
+import { useState } from 'react';
+import {
+  legalActions,
+  ROUTE_BY_ID,
+  type PlayerColour,
+  type PlayerId,
+  type PlayerView,
+  type RouteId,
+} from '@railyard/engine';
+import { Board } from '../board/Board';
+import { ClaimDialog } from '../panels/ClaimDialog';
+import { Hand } from '../panels/Hand';
+import { Players } from '../panels/Players';
+import { Table } from '../panels/Table';
+import { TicketChoice } from '../panels/TicketChoice';
+import { Tickets } from '../panels/Tickets';
+import { client, type Presence } from '../ws';
+
+export interface GameProps {
+  view: PlayerView;
+  rejection?: string | undefined;
+  presence?: Presence | undefined;
+}
+
+export function Game({ view, rejection, presence }: GameProps) {
+  const playerColours: Record<PlayerId, PlayerColour> = {};
+  for (const p of view.players) playerColours[p.id] = p.colour;
+  const legal = legalActions(view);
+  const ticketChoice = legal.find((a) => a.type === 'chooseInitialTickets');
+  const ticketKeep = legal.find((a) => a.type === 'chooseTickets');
+  const canDrawTickets = legal.some((a) => a.type === 'drawTickets');
+  const faceUpIndexes = legal.find((a) => a.type === 'drawFaceUp')?.indexes ?? [];
+  const canDrawBlind = legal.some((a) => a.type === 'drawBlind');
+  const claim = legal.find((a) => a.type === 'claimRoute');
+  const claimable = new Set<RouteId>(claim && claim.type === 'claimRoute' ? claim.routes : []);
+  const [claiming, setClaiming] = useState<RouteId | undefined>();
+  const claimingRoute = claiming && claimable.has(claiming) ? ROUTE_BY_ID.get(claiming) : undefined;
+  const myTurn = view.phase !== 'setup' && view.currentPlayer === view.me.id;
+  const secondDraw = myTurn && view.phase === 'drewOne';
+  const waitingNames = view.waitingOn
+    .filter((id) => id !== view.me.id)
+    .map((id) => view.players.find((p) => p.id === id)?.name ?? id);
+  const trigger =
+    view.finalRoundTriggeredBy !== undefined && view.phase !== 'finished'
+      ? view.players.find((p) => p.id === view.finalRoundTriggeredBy)
+      : undefined;
+
+  return (
+    <main className="game">
+      <section className="board-wrap">
+        {ticketChoice && (
+          <TicketChoice
+            key="initial"
+            tickets={view.me.pendingTickets}
+            minKeep={ticketChoice.minKeep}
+            onKeep={(keep) =>
+              client.send({ type: 'action', action: { type: 'chooseInitialTickets', keep } })
+            }
+          />
+        )}
+        {ticketKeep && (
+          <TicketChoice
+            key={`draw-${view.me.pendingTickets.map((t) => t.id).join('-')}`}
+            title="Choose which tickets to keep"
+            tickets={view.me.pendingTickets}
+            minKeep={ticketKeep.minKeep}
+            onKeep={(keep) =>
+              client.send({ type: 'action', action: { type: 'chooseTickets', keep } })
+            }
+          />
+        )}
+        {trigger && (
+          <p className="banner final-round" role="status" aria-label="final round">
+            Final round: {trigger.name} has {trigger.trainsLeft} train
+            {trigger.trainsLeft === 1 ? '' : 's'} left. Everyone gets one more turn.
+          </p>
+        )}
+        {view.phase === 'setup' && !ticketChoice && (
+          <p className="banner" role="status">
+            Waiting for {waitingNames.join(', ')} to choose tickets.
+          </p>
+        )}
+        {myTurn && (
+          <p className="banner" role="status">
+            {secondDraw ? 'Your turn: draw one more card.' : 'Your turn.'}
+          </p>
+        )}
+        {rejection && (
+          <p className="rejection" role="alert">
+            {rejection}
+          </p>
+        )}
+        {claimingRoute && (
+          <ClaimDialog
+            key={claimingRoute.id}
+            route={claimingRoute}
+            hand={view.me.hand}
+            onClaim={(cards) => {
+              client.send({
+                type: 'action',
+                action: { type: 'claimRoute', routeId: claimingRoute.id, cards },
+              });
+              setClaiming(undefined);
+            }}
+            onCancel={() => setClaiming(undefined)}
+          />
+        )}
+        <Board
+          claimed={view.claimed}
+          playerColours={playerColours}
+          claimable={claimable}
+          onRouteClick={setClaiming}
+        />
+      </section>
+      <aside className="sidebar">
+        <Players view={view} presence={presence} />
+        <Table
+          faceUp={view.faceUp}
+          trainDeckSize={view.trainDeckSize}
+          discardSize={view.discardSize}
+          ticketDeckSize={view.ticketDeckSize}
+          faceUpIndexes={faceUpIndexes}
+          canDrawBlind={canDrawBlind}
+          onDrawFaceUp={(index) =>
+            client.send({ type: 'action', action: { type: 'drawFaceUp', index } })
+          }
+          onDrawBlind={() => client.send({ type: 'action', action: { type: 'drawBlind' } })}
+        />
+        <Hand hand={view.me.hand} />
+        <Tickets
+          tickets={view.me.tickets}
+          claimed={view.claimed}
+          playerId={view.me.id}
+          canDraw={canDrawTickets}
+          onDraw={() => client.send({ type: 'action', action: { type: 'drawTickets' } })}
+        />
+      </aside>
+    </main>
+  );
+}

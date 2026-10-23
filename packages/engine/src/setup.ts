@@ -1,0 +1,143 @@
+import { ROUTES, TICKETS } from './data/usa';
+import { seedRng, shuffle, type RngState } from './rng';
+import {
+  CARDS_PER_COLOUR,
+  COLOURS,
+  FACE_UP_COUNT,
+  INITIAL_HAND,
+  INITIAL_TICKETS,
+  LOCOMOTIVE_COUNT,
+  TRAINS_PER_PLAYER,
+  type Card,
+  type GameState,
+  type PlayerColour,
+  type PlayerId,
+  type PlayerState,
+} from './state';
+
+export interface PlayerSeat {
+  id: PlayerId;
+  name: string;
+  colour: PlayerColour;
+}
+
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 5;
+
+/** A full, unshuffled train deck: 12 of each colour plus 14 locomotives. */
+export function fullTrainDeck(): Card[] {
+  const deck: Card[] = [];
+  for (const colour of COLOURS) for (let i = 0; i < CARDS_PER_COLOUR; i++) deck.push(colour);
+  for (let i = 0; i < LOCOMOTIVE_COUNT; i++) deck.push('locomotive');
+  return deck;
+}
+
+/** The train card supply: the deck, the discards it is rebuilt from, and the rng. */
+export interface Supply {
+  trainDeck: Card[];
+  discard: Card[];
+  rng: RngState;
+}
+
+/**
+ * Take the top card of the deck, reshuffling the discards into a new deck
+ * first when the deck is empty. `card` is undefined when both are empty.
+ * Pure: returns a new supply.
+ */
+export function drawFromSupply(supply: Supply): { card: Card | undefined; supply: Supply } {
+  let { trainDeck, discard, rng } = supply;
+  if (trainDeck.length === 0 && discard.length > 0) {
+    [trainDeck, rng] = shuffle(discard, rng);
+    discard = [];
+  } else {
+    trainDeck = trainDeck.slice();
+  }
+  const card = trainDeck.shift();
+  return { card, supply: { trainDeck, discard, rng } };
+}
+
+/** How many attempts at a legal face-up row before giving up on the rule. */
+const MAX_FACE_UP_DEALS = 10;
+
+/**
+ * Fill the face-up row to five from the deck (reshuffling discards in when the
+ * deck runs dry) and, whenever three or more face-up cards are locomotives,
+ * discard the whole row and deal again. Pure: returns new arrays and rng.
+ */
+export function refillFaceUp(
+  faceUp: readonly Card[],
+  trainDeck: readonly Card[],
+  discard: readonly Card[],
+  rng: RngState,
+): { faceUp: Card[]; trainDeck: Card[]; discard: Card[]; rng: RngState } {
+  let row = faceUp.slice();
+  let supply: Supply = { trainDeck: trainDeck.slice(), discard: discard.slice(), rng };
+
+  // Late in a game the supply really can be mostly locomotives, so a legal row
+  // (fewer than three locomotives) may be impossible. After a bounded number
+  // of redeals the last row stands, locomotives and all, rather than looping.
+  for (let attempt = 1; ; attempt++) {
+    while (row.length < FACE_UP_COUNT) {
+      const drawn = drawFromSupply(supply);
+      supply = drawn.supply;
+      if (drawn.card === undefined) break;
+      row.push(drawn.card);
+    }
+    const locomotives = row.filter((c) => c === 'locomotive').length;
+    if (locomotives < 3 || attempt >= MAX_FACE_UP_DEALS) break;
+    supply = { ...supply, discard: supply.discard.concat(row) };
+    row = [];
+  }
+  return { faceUp: row, trainDeck: supply.trainDeck, discard: supply.discard, rng: supply.rng };
+}
+
+/**
+ * Create a dealt game in the setup phase. Turn order is the order of `seats`;
+ * the caller randomises it. Deterministic for a given seed.
+ */
+export function createGame(seats: readonly PlayerSeat[], seed: number): GameState {
+  if (seats.length < MIN_PLAYERS || seats.length > MAX_PLAYERS) {
+    throw new Error(`a game needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players`);
+  }
+  const [trainDeck, rngAfterTrains] = shuffle(fullTrainDeck(), seedRng(seed));
+  const [ticketDeck, rng] = shuffle(TICKETS, rngAfterTrains);
+
+  const players: PlayerState[] = seats.map((seat) => {
+    const hand = trainDeck.splice(0, INITIAL_HAND);
+    const pendingTickets = ticketDeck.splice(0, INITIAL_TICKETS);
+    return {
+      id: seat.id,
+      name: seat.name,
+      colour: seat.colour,
+      hand,
+      tickets: [],
+      pendingTickets,
+      trainsLeft: TRAINS_PER_PLAYER,
+      score: 0,
+    };
+  });
+
+  const dealt = refillFaceUp([], trainDeck, [], rng);
+  const turnOrder = seats.map((s) => s.id);
+  const first = turnOrder[0];
+  if (first === undefined) throw new Error('unreachable: no players');
+
+  return {
+    seed,
+    rng: dealt.rng,
+    phase: 'setup',
+    players,
+    turnOrder,
+    currentPlayer: first,
+    trainDeck: dealt.trainDeck,
+    discard: dealt.discard,
+    faceUp: dealt.faceUp,
+    ticketDeck,
+    claimed: {},
+  };
+}
+
+/** Total number of train cards in the game, for sanity checks. */
+export const TOTAL_TRAIN_CARDS = COLOURS.length * CARDS_PER_COLOUR + LOCOMOTIVE_COUNT;
+/** Total number of routes on the board. */
+export const TOTAL_ROUTES = ROUTES.length;
