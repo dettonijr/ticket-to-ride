@@ -1,5 +1,10 @@
-import { isTicketCompleted, type PlayerId, type RouteId, type Ticket } from '@railyard/engine';
-import { cityName } from './TicketChoice';
+import {
+  cityName,
+  isTicketCompleted,
+  type PlayerId,
+  type RouteId,
+  type Ticket,
+} from '@railyard/engine';
 
 /** Kept tickets with a live completed marker, plus the Draw tickets action. */
 export function Tickets({

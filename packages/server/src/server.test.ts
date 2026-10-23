@@ -146,7 +146,7 @@ describe('server', () => {
     bob.close();
   });
 
-  it('reconnects with a token after the socket drops', async () => {
+  it('reconnects mid-turn with a token after the socket drops, and finishes the turn', async () => {
     const ann = await Client.connect();
     const bob = await Client.connect();
     const annJoined = ann.next('joined');
@@ -154,29 +154,68 @@ describe('server', () => {
     const { code } = await annJoined;
     const bobJoined = bob.next('joined');
     bob.send({ type: 'join', code, name: 'Bob', colour: 'black' });
-    const { token, playerId } = await bobJoined;
-    const snap = bob.next('snapshot');
+    await bobJoined;
+    const dealt = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
     ann.send({ type: 'start' });
-    await snap;
+    const [a0, b0] = await dealt;
 
-    const annSeesDrop = ann.next('snapshot');
-    bob.close();
-    const dropped = await annSeesDrop;
-    expect(dropped.presence.find((p) => p.id === playerId)?.connected).toBe(false);
-    expect(dropped.view.phase).toBe('setup');
+    // Reach turnStart.
+    const annChose = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
+    ann.send({
+      type: 'action',
+      action: { type: 'chooseInitialTickets', keep: a0.view.me.pendingTickets.map((t) => t.id) },
+    });
+    await annChose;
+    const bobChose = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
+    bob.send({
+      type: 'action',
+      action: { type: 'chooseInitialTickets', keep: b0.view.me.pendingTickets.map((t) => t.id) },
+    });
+    const [a1] = await bobChose;
+    expect(a1.view.phase).toBe('turnStart');
 
-    const bob2 = await Client.connect();
-    const again = bob2.next('snapshot');
-    const annSeesReturn = ann.next('snapshot');
-    bob2.send({ type: 'reconnect', token });
-    const restored = await again;
-    expect(restored.view.me.id).toBe(playerId);
-    expect(restored.view.me.hand).toHaveLength(4);
+    // The current player draws one card, then drops mid-turn.
+    const byId = { [a0.view.me.id]: { client: ann, token: (await annJoined).token } };
+    byId[b0.view.me.id] = { client: bob, token: (await bobJoined).token };
+    const currentId = a1.view.currentPlayer;
+    const current = byId[currentId]!;
+    const other = currentId === a0.view.me.id ? bob : ann;
+    const index = a1.view.faceUp.findIndex((c) => c !== 'locomotive');
+    const drewOne = Promise.all([current.client.next('snapshot'), other.next('snapshot')]);
+    current.client.send({ type: 'action', action: { type: 'drawFaceUp', index } });
+    const [c1] = await drewOne;
+    expect(c1.view.phase).toBe('drewOne');
+    const handMidTurn = c1.view.me.hand;
+
+    const otherSeesDrop = other.next('snapshot');
+    current.client.close();
+    const dropped = await otherSeesDrop;
+    expect(dropped.presence.find((p) => p.id === currentId)?.connected).toBe(false);
+    expect(dropped.view.phase).toBe('drewOne');
+
+    // Back with the same token: same seat, same mid-turn hand, everyone connected again.
+    const back = await Client.connect();
+    const restoredSnap = back.next('snapshot');
+    const otherSeesReturn = other.next('snapshot');
+    back.send({ type: 'reconnect', token: current.token });
+    const restored = await restoredSnap;
+    expect(restored.view.me.id).toBe(currentId);
+    expect(restored.view.phase).toBe('drewOne');
+    expect(restored.view.me.hand).toEqual(handMidTurn);
     expect(restored.presence.every((p) => p.connected)).toBe(true);
-    expect((await annSeesReturn).presence.find((p) => p.id === playerId)?.connected).toBe(true);
+    expect((await otherSeesReturn).presence.find((p) => p.id === currentId)?.connected).toBe(true);
+
+    // The reconnected player completes the turn.
+    const done = Promise.all([back.next('snapshot'), other.next('snapshot')]);
+    back.send({ type: 'action', action: { type: 'drawBlind' } });
+    const [c2] = await done;
+    expect(c2.view.me.hand).toHaveLength(handMidTurn.length + 1);
+    expect(c2.view.phase).toBe('turnStart');
+    expect(c2.view.currentPlayer).not.toBe(currentId);
 
     ann.close();
-    bob2.close();
+    bob.close();
+    back.close();
   });
 
   it('rejects an unknown reconnect token with a reason', async () => {

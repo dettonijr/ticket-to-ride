@@ -1,5 +1,5 @@
-import type { ApplyResult } from '../apply';
-import { CITY_BY_ID, ROUTE_BY_ID, ROUTES } from '../data/usa';
+import { countCards } from '../cards';
+import { cityName, ROUTE_BY_ID, ROUTES } from '../data/usa';
 import {
   COLOURS,
   type Card,
@@ -12,6 +12,7 @@ import {
 } from '../state';
 import { endTurn } from '../turn';
 import type { PlayerView } from '../view';
+import { refuse, type ApplyResult } from '../violation';
 
 /** Points for claiming a route, by its length in spaces. */
 export const ROUTE_POINTS: Readonly<Record<number, number>> = {
@@ -26,21 +27,13 @@ export const ROUTE_POINTS: Readonly<Record<number, number>> = {
 /** With this many players or fewer, only one of a double route's twins may be claimed. */
 export const TWIN_CLOSED_AT_OR_BELOW = 3;
 
-function refuse(code: string, message: string): ApplyResult {
-  return { ok: false, violation: { code, message } };
-}
-
-function countCards(cards: readonly Card[]): Map<Card, number> {
-  const counts = new Map<Card, number>();
-  for (const c of cards) counts.set(c, (counts.get(c) ?? 0) + 1);
-  return counts;
-}
-
 /**
- * Every valid set of cards a hand can spend on a route: one entry per usable
- * colour (grey routes accept any colour), each using as few locomotives as the
- * hand allows, plus locomotives alone when the hand holds enough. Colours are
- * listed in the fixed colour order so clients render options stably.
+ * Every valid set of cards a hand can spend on a route. For each usable colour
+ * (grey routes accept any colour) every split between that colour and
+ * locomotives the hand can afford is offered, fewest locomotives first, so a
+ * player may keep colour cards by spending locomotives instead. Locomotives
+ * alone come last, once. Colours follow the fixed colour order so clients
+ * render options stably.
  */
 export function claimOptions(hand: readonly Card[], route: Route): Card[][] {
   const counts = countCards(hand);
@@ -50,13 +43,14 @@ export function claimOptions(hand: readonly Card[], route: Route): Card[][] {
   for (const colour of colours) {
     const have = counts.get(colour) ?? 0;
     if (have === 0) continue;
-    const useColour = Math.min(have, route.length);
-    const needLocomotives = route.length - useColour;
-    if (needLocomotives > locomotives) continue;
-    options.push([
-      ...Array<Card>(useColour).fill(colour),
-      ...Array<Card>(needLocomotives).fill('locomotive'),
-    ]);
+    const fewest = Math.max(0, route.length - have);
+    const most = Math.min(locomotives, route.length - 1);
+    for (let n = fewest; n <= most; n++) {
+      options.push([
+        ...Array<Card>(route.length - n).fill(colour),
+        ...Array<Card>(n).fill('locomotive'),
+      ]);
+    }
   }
   if (locomotives >= route.length) options.push(Array<Card>(route.length).fill('locomotive'));
   return options;
@@ -156,9 +150,6 @@ export function claimRoute(
       ? { ...p, hand, trainsLeft: p.trainsLeft - route.length, score: p.score + points }
       : p,
   );
-  const from = CITY_BY_ID.get(route.from)?.name ?? route.from;
-  const to = CITY_BY_ID.get(route.to)?.name ?? route.to;
-
   return {
     ok: true,
     state: endTurn(
@@ -168,7 +159,10 @@ export function claimRoute(
         discard: [...state.discard, ...cards],
         claimed: { ...state.claimed, [route.id]: player.id },
       },
-      { playerId: player.id, description: `${player.name} claimed ${from} to ${to}` },
+      {
+        playerId: player.id,
+        description: `${player.name} claimed ${cityName(route.from)} to ${cityName(route.to)}`,
+      },
     ),
   };
 }

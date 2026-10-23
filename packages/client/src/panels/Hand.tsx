@@ -1,11 +1,10 @@
-import { COLOURS, type Card } from '@railyard/engine';
+import { COLOURS, countCards, type Card } from '@railyard/engine';
 
 const ORDER: Card[] = [...COLOURS, 'locomotive'];
 
 /** Group a hand by colour, in the fixed colour order, dropping empty groups. */
 export function groupHand(hand: readonly Card[]): Array<{ card: Card; count: number }> {
-  const counts = new Map<Card, number>();
-  for (const c of hand) counts.set(c, (counts.get(c) ?? 0) + 1);
+  const counts = countCards(hand);
   return ORDER.filter((c) => counts.has(c)).map((c) => ({ card: c, count: counts.get(c) ?? 0 }));
 }
 

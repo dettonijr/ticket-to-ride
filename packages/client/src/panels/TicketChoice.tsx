@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import { CITY_BY_ID, type Ticket, type TicketId } from '@railyard/engine';
-
-export function cityName(id: string): string {
-  return CITY_BY_ID.get(id)?.name ?? id;
-}
+import { cityName, type Ticket, type TicketId } from '@railyard/engine';
 
 /** Pick which of the drawn tickets to keep. Used at setup and after drawing tickets. */
 export function TicketChoice({

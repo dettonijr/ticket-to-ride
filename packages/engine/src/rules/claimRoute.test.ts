@@ -10,6 +10,7 @@ const allSeats = [
   { id: 'p2', name: 'Bob', colour: 'red' as const },
   { id: 'p3', name: 'Cat', colour: 'green' as const },
   { id: 'p4', name: 'Dan', colour: 'yellow' as const },
+  { id: 'p5', name: 'Eve', colour: 'black' as const },
 ];
 
 /** A game at turnStart with p1 to play, with the given hands dealt by fiat. */
@@ -157,7 +158,7 @@ describe('claimRoute', () => {
     ).toMatchObject({ ok: false, violation: { code: 'wrong-colour' } });
   });
 
-  it('accepts locomotives as wild cards, alone or mixed with the colour', () => {
+  it('accepts locomotives standing in for any colour, alone or mixed with the colour', () => {
     const state = playing({ p1: ['red', 'locomotive', 'locomotive', 'locomotive'] });
     const mixed = ok(
       apply(state, 'p1', {
@@ -213,20 +214,25 @@ describe('claimRoute', () => {
     }
   });
 
-  it('lets another player take the twin in a 4 player game, but not the same player', () => {
-    const state = playing({ p1: ['green', 'green', 'blue', 'blue'], p2: ['blue', 'blue'] }, 4);
-    const first = ok(
-      apply(state, 'p1', { type: 'claimRoute', routeId: KC_OKC_1, cards: ['green', 'green'] }),
-    );
-    const bobsTurn = ok(
-      apply(first, 'p2', { type: 'claimRoute', routeId: KC_OKC_2, cards: ['blue', 'blue'] }),
-    );
-    expect(bobsTurn.claimed[KC_OKC_2]).toBe('p2');
+  it('lets another player take the twin in a 4 or 5 player game, but not the same player', () => {
+    for (const count of [4, 5]) {
+      const state = playing(
+        { p1: ['green', 'green', 'blue', 'blue'], p2: ['blue', 'blue'] },
+        count,
+      );
+      const first = ok(
+        apply(state, 'p1', { type: 'claimRoute', routeId: KC_OKC_1, cards: ['green', 'green'] }),
+      );
+      const bobsTurn = ok(
+        apply(first, 'p2', { type: 'claimRoute', routeId: KC_OKC_2, cards: ['blue', 'blue'] }),
+      );
+      expect(bobsTurn.claimed[KC_OKC_2]).toBe('p2');
 
-    const annAgain = { ...first, currentPlayer: 'p1' };
-    expect(
-      apply(annAgain, 'p1', { type: 'claimRoute', routeId: KC_OKC_2, cards: ['blue', 'blue'] }),
-    ).toMatchObject({ ok: false, violation: { code: 'own-twin' } });
+      const annAgain = { ...first, currentPlayer: 'p1' };
+      expect(
+        apply(annAgain, 'p1', { type: 'claimRoute', routeId: KC_OKC_2, cards: ['blue', 'blue'] }),
+      ).toMatchObject({ ok: false, violation: { code: 'own-twin' } });
+    }
   });
 
   it('triggers the final round when the claim leaves two or fewer trains', () => {
@@ -269,8 +275,11 @@ describe('claimOptions', () => {
     expect(claimOptions(['yellow', 'yellow'], nyBostonRed)).toEqual([]);
   });
 
-  it('offers the matching colour, using as few locomotives as possible', () => {
-    expect(claimOptions(['red', 'red', 'locomotive'], nyBostonRed)).toEqual([['red', 'red']]);
+  it('offers every split of the matching colour and locomotives, fewest locomotives first', () => {
+    expect(claimOptions(['red', 'red', 'locomotive'], nyBostonRed)).toEqual([
+      ['red', 'red'],
+      ['red', 'locomotive'],
+    ]);
     expect(claimOptions(['red', 'locomotive', 'locomotive'], nyBostonRed)).toEqual([
       ['red', 'locomotive'],
       ['locomotive', 'locomotive'],
@@ -280,18 +289,43 @@ describe('claimOptions', () => {
     ]);
   });
 
-  it('offers one option per usable colour on a grey route', () => {
+  it('lets a player keep colour cards by spending locomotives instead', () => {
+    const saltLakeDenverRed = ROUTE_BY_ID.get('salt-lake-city-denver-1')!; // red, length 3
+    expect(claimOptions(['red', 'red', 'red', 'locomotive'], saltLakeDenverRed)).toEqual([
+      ['red', 'red', 'red'],
+      ['red', 'red', 'locomotive'],
+    ]);
+  });
+
+  it('offers each usable colour on a grey route, in colour order', () => {
     expect(claimOptions(['green', 'green', 'blue', 'blue', 'red'], grey)).toEqual([
       ['blue', 'blue'],
       ['green', 'green'],
     ]);
   });
 
-  it('counts locomotives towards every colour on a grey route, and alone', () => {
+  it('counts locomotives towards every colour on a grey route, and alone once', () => {
     expect(claimOptions(['green', 'locomotive', 'locomotive'], grey)).toEqual([
       ['green', 'locomotive'],
       ['locomotive', 'locomotive'],
     ]);
+    expect(claimOptions(['green', 'blue', 'locomotive', 'locomotive'], grey)).toEqual([
+      ['blue', 'locomotive'],
+      ['green', 'locomotive'],
+      ['locomotive', 'locomotive'],
+    ]);
     expect(claimOptions(['purple', 'purple', 'locomotive'], denverOmaha)).toEqual([]);
+  });
+
+  it('never offers a set the rule would refuse', () => {
+    const hand: Card[] = ['red', 'red', 'red', 'green', 'locomotive', 'locomotive'];
+    for (const route of [nyBostonRed, nyBostonYellow, grey, denverOmaha]) {
+      for (const cards of claimOptions(hand, route)) {
+        const state = playing({ p1: hand });
+        expect(apply(state, 'p1', { type: 'claimRoute', routeId: route.id, cards })).toMatchObject({
+          ok: true,
+        });
+      }
+    }
   });
 });

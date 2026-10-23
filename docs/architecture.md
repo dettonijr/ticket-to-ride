@@ -4,7 +4,7 @@ How the online Ticket to Ride clone is put together. Decisions here were settled
 
 ## 1. The big picture
 
-Three packages in one pnpm workspace. The engine knows the rules and nothing else. The server owns games and talks to browsers. The client draws what the server sends and turns clicks into actions.
+Four packages in one pnpm workspace. The engine knows the rules and nothing else. The protocol package holds the message types the server and client exchange. The server owns games and talks to browsers. The client draws what the server sends and turns clicks into actions.
 
 ```mermaid
 flowchart LR
@@ -40,35 +40,40 @@ railyard/
 │   ├── engine/                 pure TypeScript, no I/O, no timers
 │   │   └── src/
 │   │       ├── data/usa.ts     36 cities, 100 routes, 30 tickets
-│   │       ├── state.ts        GameState, PlayerState, Phase
+│   │       ├── state.ts        GameState, PlayerState, Phase, constants
 │   │       ├── actions.ts      Action union + RuleViolation
-│   │       ├── apply.ts        apply(state, action) → state | violation
-│   │       ├── legal.ts        legalActions(state, playerId)
-│   │       ├── setup.ts        createGame(players, seed)
+│   │       ├── apply.ts        apply(state, playerId, action) → state | violation
+│   │       ├── legal.ts        legalActions(view)
+│   │       ├── setup.ts        createGame(seats, seed), refillFaceUp
+│   │       ├── turn.ts         endTurn: next player, final round, finished
 │   │       ├── rng.ts          seeded generator + shuffle
+│   │       ├── connectivity.ts which cities a player's routes join
+│   │       ├── rules/          one file per turn action
+│   │       │   ├── drawCards.ts
+│   │       │   ├── claimRoute.ts  also claimOptions, claimableRoutes, ROUTE_POINTS
+│   │       │   └── drawTickets.ts
 │   │       ├── scoring/
-│   │       │   ├── routes.ts   1,2,4,7,10,15
-│   │       │   ├── tickets.ts  connectivity per player
-│   │       │   └── longestPath.ts
+│   │       │   └── finalScore.ts  tickets, longest path, ranking
 │   │       └── view.ts         redact(state, playerId) → PlayerView
+│   ├── protocol/               message types shared by server and client
+│   │   └── src/index.ts        ClientMessage, ServerMessage, parsers
 │   ├── server/                 Node, ws, serves the built client
 │   │   └── src/
-│   │       ├── index.ts        HTTP + WebSocket bootstrap
-│   │       ├── rooms.ts        create/join/reconnect, lobby → playing → finished
-│   │       ├── protocol.ts     message types shared with client
-│   │       └── session.ts      reconnect tokens
+│   │       ├── index.ts        bootstrap from PORT, HOST, STATIC_DIR
+│   │       ├── server.ts       HTTP static serving + WebSocket connections
+│   │       └── rooms.ts        RoomManager: create/join/reconnect/start/rematch, action log
 │   └── client/                 React + Vite
 │       └── src/
 │           ├── screens/        Home, Lobby, Game, Summary
 │           ├── board/          Board.tsx (SVG), layout from city coordinates
-│           ├── panels/         Hand, FaceUpCards, Tickets, Players, ActionBar
-│           ├── ws.ts           socket client, snapshot store
-│           └── theme.ts
+│           ├── panels/         Hand, Table, Tickets, TicketChoice, ClaimDialog, Players
+│           └── ws.ts           socket client, snapshot store, reconnect token
+├── Dockerfile
 ├── package.json                pnpm workspace
 └── pnpm-workspace.yaml
 ```
 
-Dependency direction is strict: `client → engine`, `server → engine`, and `engine → nothing`.
+Dependency direction is strict: `client → engine, protocol`, `server → engine, protocol`, `protocol → engine`, and `engine → nothing`.
 
 ## 3. The engine
 
@@ -86,16 +91,20 @@ It never mutates its input and never touches the clock or `Math.random`. Shuffle
 classDiagram
   class GameState {
     seed
+    rng: RngState
     phase: Phase
     players: PlayerState[]
+    turnOrder: PlayerId[]
     currentPlayer
     trainDeck: Card[]
     discard: Card[]
-    faceUp: Card[5]
+    faceUp: Card[]
     ticketDeck: Ticket[]
-    claimed: Map~RouteId, PlayerId~
+    claimed: Record~RouteId, PlayerId~
+    lastAction?
     finalRoundTriggeredBy?: PlayerId
     turnsRemaining?: number
+    result?: FinalResult
   }
   class PlayerState {
     id
@@ -108,20 +117,21 @@ classDiagram
     score: number
   }
   class PlayerView {
-    me: PlayerState
-    others: PublicPlayer[]
+    me: id, hand, tickets, pendingTickets
+    players: PublicPlayer[]
+    turnOrder, currentPlayer, phase
     faceUp
-    deckSize
-    ticketDeckSize
+    trainDeckSize, discardSize, ticketDeckSize
     claimed
-    phase
-    legalActions
+    lastAction?, waitingOn
+    finalRoundTriggeredBy?, turnsRemaining?
+    result? (only when finished)
   }
   GameState "1" --> "2..5" PlayerState
   GameState ..> PlayerView : redact(state, playerId)
 ```
 
-`PublicPlayer` carries only what a table shows: name, colour, score, trains left, hand size, ticket count.
+`PublicPlayer` carries only what a table shows: name, colour, score, trains left, hand size, ticket count. `result` reveals everyone's tickets and breakdown and is present only once the phase is `finished`. What the viewer may do is not stored in the view: `legalActions(view)` is a pure function over it, which the client calls to enable controls.
 
 ### 3.2 Actions
 
@@ -147,11 +157,11 @@ stateDiagram-v2
   TurnStart --> ChoosingTickets : drawTickets
   ChoosingTickets --> EndTurn : chooseTickets (keep ≥1)
   EndTurn --> TurnStart : next player
-  EndTurn --> FinalRound : current player has ≤2 trains and no final round yet
-  FinalRound --> TurnStart : while turns remain
-  FinalRound --> Finished : every player took one last turn
+  EndTurn --> Finished : the final round's last turn was taken
   Finished --> [*]
 ```
+
+`EndTurn` is not a stored phase: it is the shared `endTurn` function every turn-ending action calls. The final round is not a phase either. When the player ending a turn has two or fewer trains and no final round is running, `endTurn` sets `finalRoundTriggeredBy` and `turnsRemaining` to the player count; the turn phases keep cycling, each `endTurn` counts a turn down, and when the count reaches zero the phase becomes `finished`. At that moment `endTurn` scores the game once with `finalScores` and stores the result on the state.
 
 Invariants checked on every transition, each one a unit test:
 
@@ -177,27 +187,30 @@ sequenceDiagram
   participant B as Client (Bob)
 
   A->>S: { type: "action", action: claimRoute }
-  S->>E: apply(state, action)
+  S->>E: apply(state, Ann, action)
   alt violation
     E-->>S: { ok: false, violation }
-    S-->>A: { type: "rejected", violation }
+    S-->>A: { type: "rejected", code, reason }
   else accepted
     E-->>S: { ok: true, state }
     S->>S: append to action log, replace state
     S->>E: redact(state, Ann)
-    S-->>A: { type: "snapshot", view }
+    S-->>A: { type: "snapshot", view, presence }
     S->>E: redact(state, Bob)
-    S-->>B: { type: "snapshot", view }
+    S-->>B: { type: "snapshot", view, presence }
   end
 ```
 
+Every snapshot also carries `presence`, who is currently connected, so the table can mark a player who dropped.
+
 Rooms:
 
-- `createGame` returns a six-character join code. The room starts in the lobby.
+- `create { name, colour }` returns a six-character join code. The room starts in the lobby.
 - `join { code, name, colour }` adds a player and returns a reconnect token the browser stores locally.
-- `start` from the host shuffles turn order, picks a random first player, and calls `createGame(players, seed)`.
+- `start` from the host shuffles turn order, which also picks the first player, and calls `createGame(seats, seed)`.
 - A socket that reconnects with its token is reattached to its player and receives a fresh snapshot. No timers, no kicks.
-- `rematch` from the host at `Finished` creates a new game with the same players and a new seed.
+- `rematch` from the host at `finished` creates a new game with the same players and a new seed.
+- Every refusal is a `rejected { code, reason }`: `code` is stable for the client to branch on, `reason` is for people.
 
 Everything is in memory. A restart loses all rooms; this is accepted for v1.
 
@@ -208,10 +221,10 @@ Screens follow the room lifecycle: **Home** (create or join) → **Lobby** (name
 The Game screen is one SVG board plus panels:
 
 - **Board**: cities at the dataset coordinates, routes as dashed lines with one dash per space, coloured by route colour, filled with the owner's colour once claimed. Clicking an unclaimed route opens the claim dialog with card choices.
-- **Face-up cards** and the **deck** are clickable when drawing is legal.
+- **Table**: the face-up cards and the deck, clickable when drawing is legal.
 - **Hand** groups cards by colour with counts.
-- **Tickets** shows kept tickets with live completed-or-not status, computed with the engine's connectivity check on the player's own view.
-- **Players** sidebar shows public info and whose turn it is.
+- **Tickets** shows kept tickets with live completed-or-not status, computed with the engine's connectivity check on the player's own view, and the draw-tickets button.
+- **Players** sidebar shows public info, whose turn it is, who is disconnected, and the last action.
 
 The client holds no rule logic of its own. It calls `legalActions(view)` from the engine to enable and disable controls, and sends the action. Whatever the server returns is rendered.
 

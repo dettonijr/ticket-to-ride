@@ -40,14 +40,14 @@ describe('GameClient store', () => {
     const c = new GameClient('ws://unused');
     c.receive({ type: 'joined', code: 'ABCDEF', playerId: 'p1', token: 'stale', hostId: 'p1' });
     expect(localStorage.getItem('railyard.token')).toBe('stale');
-    c.receive({ type: 'rejected', reason: 'Unknown reconnect token' });
+    c.receive({ type: 'rejected', code: 'unknown-token', reason: 'Unknown reconnect token' });
     expect(localStorage.getItem('railyard.token')).toBeNull();
     expect(c.getState().rejection).toMatch(/game is no longer available/i);
   });
 
   it('keeps the last rejection until the next good message', () => {
     const c = new GameClient('ws://unused');
-    c.receive({ type: 'rejected', reason: 'That colour is taken' });
+    c.receive({ type: 'rejected', code: 'colour-taken', reason: 'That colour is taken' });
     expect(c.getState().rejection).toBe('That colour is taken');
     c.receive({ type: 'lobby', code: 'X', hostId: 'p1', players: [] });
     expect(c.getState().rejection).toBeUndefined();

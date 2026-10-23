@@ -171,6 +171,7 @@ describe('a full game through the server', () => {
     bob.send({ type: 'rematch' });
     expect(await refused).toEqual({
       type: 'rejected',
+      code: 'not-host',
       reason: 'Only the host can start a rematch',
     });
 

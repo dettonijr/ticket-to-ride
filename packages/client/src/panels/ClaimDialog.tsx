@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { CITY_BY_ID, claimOptions, ROUTE_POINTS, type Card, type Route } from '@railyard/engine';
-
-function cityName(id: string): string {
-  return CITY_BY_ID.get(id)?.name ?? id;
-}
+import {
+  cityName,
+  claimOptions,
+  countCards,
+  ROUTE_POINTS,
+  type Card,
+  type Route,
+} from '@railyard/engine';
 
 /** One way to pay, as a short label: "2 red" or "1 green + 1 locomotive". */
 export function describeOption(cards: readonly Card[]): string {
-  const counts = new Map<Card, number>();
-  for (const c of cards) counts.set(c, (counts.get(c) ?? 0) + 1);
-  return [...counts.entries()].map(([card, n]) => `${n} ${card}`).join(' + ');
+  return [...countCards(cards).entries()].map(([card, n]) => `${n} ${card}`).join(' + ');
 }
 
 /** Choose which cards to spend on a route, then claim it. */

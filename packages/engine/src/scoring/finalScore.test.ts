@@ -133,9 +133,17 @@ describe('finalScores', () => {
   it('ranks by total points first', () => {
     const state = finished({}, {}, { p1: 5, p2: 20, p3: 7 });
     const result = finalScores(state);
-    // Nobody has a route, so everyone ties at longest path 0 and all get the bonus.
     expect(result.ranking).toEqual(['p2', 'p3', 'p1']);
     expect(result.winnerIds).toEqual(['p2']);
+  });
+
+  it('awards no longest path bonus when nobody built a path', () => {
+    const state = finished({}, {}, { p1: 5, p2: 5, p3: 0 });
+    const result = finalScores(state);
+    expect(result.longestPath).toBe(0);
+    expect(result.players.every((p) => !p.longestPathBonus)).toBe(true);
+    expect(result.players.find((p) => p.playerId === 'p1')?.total).toBe(5);
+    expect(result.winnerIds).toEqual(['p1', 'p2']);
   });
 
   it('breaks a points tie by completed tickets', () => {

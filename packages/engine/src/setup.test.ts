@@ -86,4 +86,12 @@ describe('refillFaceUp', () => {
     expect(result.discard).toHaveLength(0);
     expect(result.trainDeck).toHaveLength(0);
   });
+
+  it('terminates with a row standing when the whole supply is locomotives', () => {
+    const supply: Card[] = Array<Card>(8).fill('locomotive');
+    const result = refillFaceUp([], supply, [], seedRng(1));
+    expect(result.faceUp).toHaveLength(5);
+    expect(result.faceUp.every((c) => c === 'locomotive')).toBe(true);
+    expect(result.faceUp.length + result.trainDeck.length + result.discard.length).toBe(8);
+  });
 });

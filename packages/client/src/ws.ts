@@ -125,7 +125,7 @@ export class GameClient {
         return;
       }
       case 'rejected':
-        if (msg.reason === 'Unknown reconnect token') {
+        if (msg.code === 'unknown-token') {
           // The server forgot us (restart, or a very old token). Start over at Home.
           writeToken(undefined);
           this.set({ rejection: 'Your previous game is no longer available.' });

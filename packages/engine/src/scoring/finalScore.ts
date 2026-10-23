@@ -99,7 +99,8 @@ export function finalScores(state: GameState): FinalResult {
 
   const longest = Math.max(0, ...scored.map((p) => p.longestPath));
   const players: PlayerResult[] = scored.map((p) => {
-    const longestPathBonus = p.longestPath === longest;
+    // The card goes to a path; with no routes on the board nobody holds it.
+    const longestPathBonus = longest > 0 && p.longestPath === longest;
     return {
       ...p,
       longestPathBonus,

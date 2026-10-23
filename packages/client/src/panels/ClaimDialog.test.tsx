@@ -23,6 +23,7 @@ describe('ClaimDialog', () => {
     expect(options.map((o) => o.parentElement?.textContent)).toEqual([
       '1 blue + 1 locomotive',
       '2 green',
+      '1 green + 1 locomotive',
     ]);
 
     fireEvent.click(screen.getByLabelText('2 green'));
