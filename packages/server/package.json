@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@railyard/engine": "workspace:*",
+    "@railyard/protocol": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

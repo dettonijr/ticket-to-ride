@@ -5,7 +5,7 @@ Online Ticket to Ride for friends. Read `GLOSSARY.md` for vocabulary, `docs/arch
 ## Working in this repo
 
 - pnpm workspace, Node 22. Root commands: `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm dev`. Run `pnpm format` before committing.
-- Three packages under `packages/`: `engine` (pure rules), `server` (Node + ws), `client` (React + Vite). Dependency direction is strict: client and server import `@railyard/engine`; the engine imports nothing.
+- Four packages under `packages/`: `engine` (pure rules), `protocol` (message types shared by server and client), `server` (Node + ws), `client` (React + Vite). Dependency direction is strict: client and server import `@railyard/engine` and `@railyard/protocol`; protocol imports only the engine; the engine imports nothing.
 - `packages/engine` must stay pure (ADR 0001): no `Math.random`, no `Date`, no timers, no I/O. All randomness goes through the seeded generator in the engine. Functions never mutate their inputs.
 - Tests are Vitest, co-located as `*.test.ts(x)`. Engine tests drive `createGame`, `apply`, `legalActions` and `redact` only. Server tests open real WebSocket clients against an in-process server. Build features test-first.
 - Strict TypeScript with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`; `consistent-type-imports` is enforced by ESLint.

@@ -6,11 +6,12 @@ Design notes live in `docs/architecture.md`, the vocabulary in `GLOSSARY.md`, an
 
 ## Layout
 
-| Package           | What it is                                                           |
-| ----------------- | -------------------------------------------------------------------- |
-| `packages/engine` | Pure, seeded, replayable rules. No I/O. Used by server and client.   |
-| `packages/server` | Node process: WebSocket gateway, in-memory rooms, serves the client. |
-| `packages/client` | React app: lobby, SVG board, hand and ticket panels.                 |
+| Package             | What it is                                                           |
+| ------------------- | -------------------------------------------------------------------- |
+| `packages/protocol` | Message types shared by server and client, plus the pure parser.     |
+| `packages/engine`   | Pure, seeded, replayable rules. No I/O. Used by server and client.   |
+| `packages/server`   | Node process: WebSocket gateway, in-memory rooms, serves the client. |
+| `packages/client`   | React app: lobby, SVG board, hand and ticket panels.                 |
 
 ## Development
 

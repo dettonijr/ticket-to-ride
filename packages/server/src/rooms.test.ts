@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RoomError, RoomManager, type Outbox } from './rooms';
-import type { ServerMessage } from './protocol';
+import type { ServerMessage } from '@railyard/protocol';
 
 function inbox(): Outbox & {
   messages: ServerMessage[];

@@ -8,7 +8,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ENGINE_NAME } from '@railyard/engine';
-import { parseClientMessage, type ServerMessage } from './protocol';
+import { parseClientMessage, type ServerMessage } from '@railyard/protocol';
 import { RoomError, RoomManager, type Outbox, type Room, type Seat } from './rooms';
 
 const MIME: Record<string, string> = {

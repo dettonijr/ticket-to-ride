@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage } from './protocol';
+import type { ClientMessage, ServerMessage } from '@railyard/protocol';
 import { createServer, type RailyardServer } from './server';
 
 let server: RailyardServer;

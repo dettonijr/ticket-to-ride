@@ -1,28 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import type { PlayerColour, PlayerId, PlayerView } from '@railyard/engine';
+import type { PlayerId, PlayerView } from '@railyard/engine';
+import type { ClientMessage, LobbyPlayer, ServerMessage } from '@railyard/protocol';
 
-/** Mirrors packages/server/src/protocol.ts. Keep the two in step. */
-export type ClientMessage =
-  | { type: 'ping' }
-  | { type: 'create'; name: string; colour: PlayerColour }
-  | { type: 'join'; code: string; name: string; colour: PlayerColour }
-  | { type: 'reconnect'; token: string }
-  | { type: 'start' };
-
-export interface LobbyPlayer {
-  id: PlayerId;
-  name: string;
-  colour: PlayerColour;
-  connected: boolean;
-}
-
-export type ServerMessage =
-  | { type: 'pong' }
-  | { type: 'joined'; code: string; playerId: PlayerId; token: string; hostId: PlayerId }
-  | { type: 'lobby'; code: string; hostId: PlayerId; players: LobbyPlayer[] }
-  | { type: 'snapshot'; view: PlayerView }
-  | { type: 'rejected'; reason: string }
-  | { type: 'error'; message: string };
+export type { ClientMessage, LobbyPlayer, ServerMessage };
 
 export interface ClientState {
   connection: 'connecting' | 'open' | 'closed';

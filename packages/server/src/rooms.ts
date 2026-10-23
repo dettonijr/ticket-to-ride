@@ -10,7 +10,7 @@ import {
   type PlayerColour,
   type PlayerId,
 } from '@railyard/engine';
-import type { LobbyPlayer, ServerMessage } from './protocol';
+import type { LobbyPlayer, ServerMessage } from '@railyard/protocol';
 
 /** Something that can receive server messages: a socket, or a test double. */
 export interface Outbox {
