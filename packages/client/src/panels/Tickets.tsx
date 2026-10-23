@@ -39,11 +39,13 @@ export function Tickets({
               >
                 <span className="ticket-cities">
                   <span>{cityName(t.from)}</span>
-                  <span className="muted">to</span>
+                  <span className="muted" aria-hidden="true">
+                    →
+                  </span>
                   <span>{cityName(t.to)}</span>
                 </span>
                 <span className="ticket-status" aria-hidden="true">
-                  {done ? '✓' : ''}
+                  {done ? 'done' : ''}
                 </span>
                 <span className="ticket-points">{t.points}</span>
               </li>

@@ -7,6 +7,7 @@ import {
   type Card,
   type Route,
 } from '@railyard/engine';
+import { CardFace, cardClass } from './Card';
 
 /** One way to pay, as a short label: "2 red" or "1 green + 1 locomotive". */
 export function describeOption(cards: readonly Card[]): string {
@@ -40,7 +41,7 @@ export function ClaimDialog({
       <ul className="ticket-list" aria-label="ways to pay">
         {options.map((cards, i) => (
           <li key={i}>
-            <label className={`ticket ${i === chosen ? 'selected' : ''}`}>
+            <label className={`ticket pay-option ${i === chosen ? 'selected' : ''}`}>
               <input
                 type="radio"
                 name="claim-option"
@@ -48,6 +49,13 @@ export function ClaimDialog({
                 checked={i === chosen}
                 onChange={() => setChosen(i)}
               />
+              <span className="pay-cards" aria-hidden="true">
+                {cards.map((card, j) => (
+                  <span key={j} className={cardClass(card)}>
+                    <CardFace />
+                  </span>
+                ))}
+              </span>
               <span className="ticket-cities">{describeOption(cards)}</span>
             </label>
           </li>
