@@ -148,4 +148,70 @@ describe('RoomManager', () => {
     expect(ann.last('lobby')?.players.find((p) => p.id === bobSeat.id)?.connected).toBe(true);
     expect(() => rooms.reconnect('bogus', inbox())).toThrow('Unknown reconnect token');
   });
+
+  it('tells everyone who is connected with every snapshot during a game', () => {
+    const rooms = manager();
+    const ann = inbox();
+    const bob = inbox();
+    const { room, seat: annSeat } = rooms.create('Ann', 'blue', ann);
+    const { seat: bobSeat } = rooms.join('CODE1X', 'Bob', 'red', bob);
+    rooms.start(room, annSeat.id);
+    expect(ann.last('snapshot')?.presence).toEqual([
+      { id: annSeat.id, connected: true },
+      { id: bobSeat.id, connected: true },
+    ]);
+
+    const before = ann.messages.length;
+    rooms.disconnect(bobSeat, bob);
+    expect(ann.messages.length).toBeGreaterThan(before);
+    expect(ann.last('snapshot')?.presence).toEqual([
+      { id: annSeat.id, connected: true },
+      { id: bobSeat.id, connected: false },
+    ]);
+
+    const bobAgain = inbox();
+    rooms.reconnect(bob.last('joined')?.token as string, bobAgain);
+    expect(ann.last('snapshot')?.presence.find((p) => p.id === bobSeat.id)?.connected).toBe(true);
+    expect(bobAgain.last('snapshot')?.presence.find((p) => p.id === bobSeat.id)?.connected).toBe(
+      true,
+    );
+  });
+
+  it('lets the host start a rematch once the game is finished, with a fresh deal', () => {
+    let seed = 42;
+    let deals = 0;
+    const rooms = new RoomManager({
+      randomCode: () => 'CODE1X',
+      randomSeed: () => seed++,
+      // First deal reversed, second in seating order, so the rematch order visibly differs.
+      randomOrder: (items) => (deals++ === 0 ? items.slice().reverse() : items.slice()),
+    });
+    const ann = inbox();
+    const bob = inbox();
+    const { room, seat: annSeat } = rooms.create('Ann', 'blue', ann);
+    const { seat: bobSeat } = rooms.join('CODE1X', 'Bob', 'red', bob);
+    rooms.start(room, annSeat.id);
+    const firstView = ann.last('snapshot')!.view;
+
+    expect(() => rooms.rematch(room, annSeat.id)).toThrow('The game is not over yet');
+
+    room.status = 'finished';
+    room.log.push({ playerId: annSeat.id, action: { type: 'drawBlind' } });
+    expect(() => rooms.rematch(room, bobSeat.id)).toThrow('Only the host can start a rematch');
+
+    rooms.rematch(room, annSeat.id);
+    expect(room.status).toBe('playing');
+    expect(room.log).toEqual([]);
+    const annView = ann.last('snapshot')!.view;
+    const bobView = bob.last('snapshot')!.view;
+    expect(annView.phase).toBe('setup');
+    expect(bobView.phase).toBe('setup');
+    expect(annView.me.pendingTickets).toHaveLength(3);
+    expect(annView.players.map((p) => p.id).sort()).toEqual([annSeat.id, bobSeat.id].sort());
+    expect(annView.players.find((p) => p.id === annSeat.id)?.colour).toBe('blue');
+    expect(annView.turnOrder).toEqual([annSeat.id, bobSeat.id]);
+    expect(firstView.turnOrder).toEqual([bobSeat.id, annSeat.id]);
+    expect(room.game?.seed).toBe(43);
+    expect(annView.me.hand).not.toEqual(firstView.me.hand);
+  });
 });

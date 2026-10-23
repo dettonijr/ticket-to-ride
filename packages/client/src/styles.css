@@ -545,3 +545,9 @@ button.card:disabled {
   display: grid;
   gap: 2px;
 }
+
+.summary .rematch {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 16px;
+}

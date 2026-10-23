@@ -7,6 +7,7 @@ import {
 } from '@railyard/engine';
 import { Board, PLAYER_FILL } from '../board/Board';
 import { cityName } from '../panels/TicketChoice';
+import { client, type Presence } from '../ws';
 
 function ticketLines(result: PlayerResult, completed: boolean) {
   const tickets = result.tickets.filter((t) => t.completed === completed);
@@ -26,9 +27,18 @@ function ticketLines(result: PlayerResult, completed: boolean) {
   );
 }
 
+export interface SummaryProps {
+  view: PlayerView;
+  hostId: PlayerId | undefined;
+  presence?: Presence | undefined;
+}
+
 /** The end of the game: ranking, every player's revealed tickets, and the final board. */
-export function Summary({ view }: { view: PlayerView }) {
+export function Summary({ view, hostId, presence }: SummaryProps) {
   const result = view.result;
+  const isHost = hostId !== undefined && hostId === view.me.id;
+  const hostName = view.players.find((p) => p.id === hostId)?.name ?? 'the host';
+  const away = view.players.filter((p) => presence?.[p.id] === false);
   const playerColours: Record<PlayerId, PlayerColour> = {};
   const names: Record<PlayerId, string> = {};
   for (const p of view.players) {
@@ -120,17 +130,18 @@ export function Summary({ view }: { view: PlayerView }) {
             </tbody>
           </table>
         </div>
-        <p>
-          <button
-            type="button"
-            className="primary"
-            id="rematch"
-            disabled
-            title="Rematch is coming in the next ticket"
-          >
-            Rematch
-          </button>
-        </p>
+        <div className="rematch" role="status">
+          {isHost ? (
+            <button type="button" className="primary" id="rematch" onClick={() => client.rematch()}>
+              Rematch
+            </button>
+          ) : (
+            <p className="muted">Waiting for {hostName} to start a rematch.</p>
+          )}
+          {away.length > 0 && (
+            <p className="muted">{away.map((p) => `${p.name} (disconnected)`).join(', ')}</p>
+          )}
+        </div>
         <Board claimed={view.claimed} playerColours={playerColours} />
       </section>
     </main>

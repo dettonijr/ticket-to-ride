@@ -12,7 +12,7 @@ import {
   type PlayerColour,
   type PlayerId,
 } from '@railyard/engine';
-import type { LobbyPlayer, ServerMessage } from '@railyard/protocol';
+import type { LobbyPlayer, Presence, ServerMessage } from '@railyard/protocol';
 
 /** Something that can receive server messages: a socket, or a test double. */
 export interface Outbox {
@@ -130,28 +130,29 @@ export class RoomManager {
     return { room, seat };
   }
 
-  /** Reattach a socket to its seat and resend the current state. */
+  /**
+   * Reattach a socket to its seat and resend the current state. During a game
+   * everyone gets a fresh snapshot so their table shows the player is back.
+   */
   reconnect(token: string, outbox: Outbox): { room: Room; seat: Seat } {
     const found = this.byToken.get(token);
     if (!found) throw new RoomError('Unknown reconnect token');
     const { room, seat } = found;
     seat.outbox = outbox;
     outbox.send(this.joinedMessage(room, seat));
-    if (room.status === 'lobby') {
-      this.broadcastLobby(room);
-    } else {
-      this.broadcastLobby(room);
-      this.sendSnapshot(room, seat);
-    }
+    this.broadcastLobby(room);
+    this.broadcastSnapshots(room);
     return { room, seat };
   }
 
-  /** Mark a seat disconnected. The game keeps waiting for them. */
+  /** Mark a seat disconnected and tell the others. The game keeps waiting for them. */
   disconnect(seat: Seat, outbox: Outbox): void {
     if (seat.outbox !== outbox) return;
     seat.outbox = undefined;
     const found = this.byToken.get(seat.token);
-    if (found) this.broadcastLobby(found.room);
+    if (!found) return;
+    this.broadcastLobby(found.room);
+    this.broadcastSnapshots(found.room);
   }
 
   start(room: Room, byPlayerId: PlayerId): void {
@@ -159,11 +160,23 @@ export class RoomManager {
     if (room.status !== 'lobby') throw new RoomError('That game has already started');
     if (room.seats.length < MIN_PLAYERS)
       throw new RoomError(`Need at least ${MIN_PLAYERS} players to start`);
+    this.deal(room);
+  }
+
+  /** Same seats and colours, new order and seed, straight into the deal. */
+  rematch(room: Room, byPlayerId: PlayerId): void {
+    if (room.hostId !== byPlayerId) throw new RoomError('Only the host can start a rematch');
+    if (room.status !== 'finished') throw new RoomError('The game is not over yet');
+    this.deal(room);
+  }
+
+  private deal(room: Room): void {
     const order = this.randomOrder(room.seats);
     room.game = createGame(
       order.map((s) => ({ id: s.id, name: s.name, colour: s.colour })),
       this.randomSeed(),
     );
+    room.log = [];
     room.status = 'playing';
     this.broadcastSnapshots(room);
   }
@@ -190,7 +203,15 @@ export class RoomManager {
 
   private sendSnapshot(room: Room, seat: Seat): void {
     if (!room.game) return;
-    seat.outbox?.send({ type: 'snapshot', view: redact(room.game, seat.id) });
+    seat.outbox?.send({
+      type: 'snapshot',
+      view: redact(room.game, seat.id),
+      presence: this.presence(room),
+    });
+  }
+
+  private presence(room: Room): Presence[] {
+    return room.seats.map((s) => ({ id: s.id, connected: s.outbox !== undefined }));
   }
 
   private broadcastLobby(room: Room): void {

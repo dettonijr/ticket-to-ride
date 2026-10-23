@@ -1,7 +1,10 @@
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apply, createGame, redact, type GameState } from '@railyard/engine';
+import { client } from '../ws';
 import { Summary } from './Summary';
+
+afterEach(() => vi.restoreAllMocks());
 
 const seats = [
   { id: 'p1', name: 'Ann', colour: 'blue' as const },
@@ -41,7 +44,7 @@ describe('Summary screen', () => {
   it('shows the ranking, every player’s revealed tickets and the breakdown', () => {
     const state = finishedGame();
     const view = redact(state, 'p2');
-    render(<Summary view={view} />);
+    render(<Summary view={view} hostId="p1" />);
 
     expect(screen.getByRole('heading', { name: /game over/i })).toBeInTheDocument();
     const ranking = screen.getByRole('list', { name: 'ranking' });
@@ -68,8 +71,25 @@ describe('Summary screen', () => {
     const annTotal = result.players.find((p) => p.playerId === 'p1')!.total;
     expect(screen.getByTestId('total-p1')).toHaveTextContent(String(annTotal));
 
-    // The board is still there and the rematch button waits for the next ticket.
+    // The board is still there. Bob is not the host, so he waits for Ann.
     expect(screen.getByRole('img', { name: /board/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Rematch' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Rematch' })).not.toBeInTheDocument();
+    expect(screen.getByText(/waiting for ann to start a rematch/i)).toBeInTheDocument();
+  });
+
+  it('lets the host start a rematch', () => {
+    const send = vi.spyOn(client, 'send').mockImplementation(() => {});
+    const view = redact(finishedGame(), 'p1');
+    render(<Summary view={view} hostId="p1" />);
+    const button = screen.getByRole('button', { name: 'Rematch' });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(send).toHaveBeenCalledWith({ type: 'rematch' });
+  });
+
+  it('shows who has dropped off while waiting at the end', () => {
+    const view = redact(finishedGame(), 'p1');
+    render(<Summary view={view} hostId="p1" presence={{ p1: true, p2: false }} />);
+    expect(screen.getByText('Bob (disconnected)')).toBeInTheDocument();
   });
 });

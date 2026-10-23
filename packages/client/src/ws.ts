@@ -11,9 +11,13 @@ export interface ClientState {
   hostId: PlayerId | undefined;
   lobby: LobbyPlayer[] | undefined;
   view: PlayerView | undefined;
+  /** Who is connected, by player id, from the latest snapshot. */
+  presence: Presence | undefined;
   /** The last rejection reason, cleared on the next successful message. */
   rejection: string | undefined;
 }
+
+export type Presence = Record<PlayerId, boolean>;
 
 const TOKEN_KEY = 'railyard.token';
 
@@ -48,6 +52,7 @@ export class GameClient {
     hostId: undefined,
     lobby: undefined,
     view: undefined,
+    presence: undefined,
     rejection: undefined,
   };
   private listeners = new Set<() => void>();
@@ -81,7 +86,13 @@ export class GameClient {
       hostId: undefined,
       lobby: undefined,
       view: undefined,
+      presence: undefined,
     });
+  }
+
+  /** Host only, once the game is over: deal a new game to the same players. */
+  rematch(): void {
+    this.send({ type: 'rematch' });
   }
 
   getState = (): ClientState => this.state;
@@ -107,11 +118,19 @@ export class GameClient {
       case 'lobby':
         this.set({ code: msg.code, hostId: msg.hostId, lobby: msg.players, rejection: undefined });
         return;
-      case 'snapshot':
-        this.set({ view: msg.view, rejection: undefined });
+      case 'snapshot': {
+        const presence: Presence = {};
+        for (const p of msg.presence) presence[p.id] = p.connected;
+        this.set({ view: msg.view, presence, rejection: undefined });
         return;
+      }
       case 'rejected':
-        if (msg.reason === 'Unknown reconnect token') writeToken(undefined);
+        if (msg.reason === 'Unknown reconnect token') {
+          // The server forgot us (restart, or a very old token). Start over at Home.
+          writeToken(undefined);
+          this.set({ rejection: 'Your previous game is no longer available.' });
+          return;
+        }
         this.set({ rejection: msg.reason });
         return;
       case 'error':
