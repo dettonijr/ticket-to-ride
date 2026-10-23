@@ -12,6 +12,8 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
   for (const p of view.players) playerColours[p.id] = p.colour;
   const legal = legalActions(view);
   const ticketChoice = legal.find((a) => a.type === 'chooseInitialTickets');
+  const ticketKeep = legal.find((a) => a.type === 'chooseTickets');
+  const canDrawTickets = legal.some((a) => a.type === 'drawTickets');
   const canDraw = legal.some((a) => a.type === 'drawFaceUp' || a.type === 'drawBlind');
   const myTurn = view.phase !== 'setup' && view.currentPlayer === view.me.id;
   const waitingNames = view.waitingOn
@@ -28,6 +30,17 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
             minKeep={ticketChoice.minKeep}
             onKeep={(keep) =>
               client.send({ type: 'action', action: { type: 'chooseInitialTickets', keep } })
+            }
+          />
+        )}
+        {ticketKeep && (
+          <TicketChoice
+            key={`draw-${view.me.pendingTickets.map((t) => t.id).join('-')}`}
+            title="Choose which tickets to keep"
+            tickets={view.me.pendingTickets}
+            minKeep={ticketKeep.minKeep}
+            onKeep={(keep) =>
+              client.send({ type: 'action', action: { type: 'chooseTickets', keep } })
             }
           />
         )}
@@ -58,7 +71,13 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
           canDraw={canDraw}
         />
         <Hand hand={view.me.hand} />
-        <Tickets tickets={view.me.tickets} />
+        <Tickets
+          tickets={view.me.tickets}
+          claimed={view.claimed}
+          playerId={view.me.id}
+          canDraw={canDrawTickets}
+          onDraw={() => client.send({ type: 'action', action: { type: 'drawTickets' } })}
+        />
       </aside>
     </main>
   );
