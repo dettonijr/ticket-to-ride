@@ -1,12 +1,12 @@
 import type { Action, RuleViolation } from './actions';
+import { chooseTickets, drawTickets } from './rules/drawTickets';
 import { INITIAL_TICKETS, type GameState, type PlayerId, type PlayerState } from './state';
 
 export type ApplyResult = { ok: true; state: GameState } | { ok: false; violation: RuleViolation };
 
 /** Minimum tickets to keep from the initial deal. */
 export const INITIAL_MIN_KEEP = 2;
-/** Minimum tickets to keep from a mid-game draw. */
-export const DRAW_MIN_KEEP = 1;
+export { DRAW_MIN_KEEP } from './rules/drawTickets';
 
 function refuse(code: string, message: string): ApplyResult {
   return { ok: false, violation: { code, message } };
@@ -23,11 +23,17 @@ export function apply(state: GameState, playerId: PlayerId, action: Action): App
   switch (action.type) {
     case 'chooseInitialTickets':
       return chooseInitialTickets(state, player, action.keep);
+    case 'drawTickets':
+      if (state.phase === 'setup')
+        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
+      return drawTickets(state, player);
+    case 'chooseTickets':
+      if (state.phase === 'setup')
+        return refuse('wrong-phase', 'Everyone has to choose their tickets first');
+      return chooseTickets(state, player, action.keep);
     case 'drawFaceUp':
     case 'drawBlind':
     case 'claimRoute':
-    case 'drawTickets':
-    case 'chooseTickets':
       if (state.phase === 'setup')
         return refuse('wrong-phase', 'Everyone has to choose their tickets first');
       return refuse('not-implemented', `${action.type} is not implemented yet`);

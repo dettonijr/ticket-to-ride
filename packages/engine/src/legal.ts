@@ -1,4 +1,4 @@
-import { INITIAL_MIN_KEEP } from './apply';
+import { DRAW_MIN_KEEP, INITIAL_MIN_KEEP } from './apply';
 import type { PlayerView } from './view';
 
 /**
@@ -15,7 +15,8 @@ export type LegalAction =
   | { type: 'drawFaceUp' }
   | { type: 'drawBlind' }
   | { type: 'claimRoute' }
-  | { type: 'drawTickets' };
+  | { type: 'drawTickets' }
+  | { type: 'chooseTickets'; minKeep: number };
 
 export function legalActions(view: PlayerView): LegalAction[] {
   switch (view.phase) {
@@ -29,10 +30,13 @@ export function legalActions(view: PlayerView): LegalAction[] {
         { type: 'drawFaceUp' },
         { type: 'drawBlind' },
         { type: 'claimRoute' },
-        { type: 'drawTickets' },
+        ...(view.ticketDeckSize > 0 ? [{ type: 'drawTickets' } as const] : []),
       ];
-    case 'drewOne':
     case 'choosingTickets':
+      return view.currentPlayer === view.me.id && view.me.pendingTickets.length > 0
+        ? [{ type: 'chooseTickets', minKeep: DRAW_MIN_KEEP }]
+        : [];
+    case 'drewOne':
     case 'finished':
       return [];
   }
