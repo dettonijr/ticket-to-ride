@@ -4,7 +4,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ENGINE_NAME } from '@railyard/engine';
@@ -35,21 +35,48 @@ export interface ServerOptions {
   rooms?: RoomManager;
 }
 
-function defaultStaticDir(): string {
+/** Where the built client lives when nothing says otherwise: packages/client/dist. */
+export function defaultStaticDir(): string {
   const here = fileURLToPath(new URL('.', import.meta.url));
-  // Works both from src/ (tsx) and from dist/ (bundled).
+  // Works both from src/ (tsx) and from dist/ (bundled): both sit one level under packages/server.
   return resolve(here, '..', '..', 'client', 'dist');
+}
+
+export interface ServerConfig {
+  port: number;
+  host: string;
+  staticDir: string;
+}
+
+/** Runtime configuration from the environment: PORT, HOST and STATIC_DIR. */
+export function serverConfigFromEnv(env: Record<string, string | undefined>): ServerConfig {
+  const port = Number(env['PORT'] ?? 3000);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error(`PORT must be a whole number between 0 and 65535, got "${env['PORT']}"`);
+  }
+  return {
+    port,
+    host: env['HOST'] ?? '0.0.0.0',
+    staticDir: env['STATIC_DIR'] ? resolve(env['STATIC_DIR']) : defaultStaticDir(),
+  };
 }
 
 function serveStatic(staticDir: string, req: IncomingMessage, res: ServerResponse): void {
   const url = new URL(req.url ?? '/', 'http://localhost');
-  let path = normalize(decodeURIComponent(url.pathname));
-  if (path.includes('..')) {
+  let path: string;
+  try {
+    path = normalize(decodeURIComponent(url.pathname));
+  } catch {
     res.writeHead(400).end();
     return;
   }
   if (path === '/') path = '/index.html';
-  let file = join(staticDir, path);
+  let file = resolve(staticDir, `.${path}`);
+  if (file !== staticDir && !file.startsWith(staticDir + sep)) {
+    // Never serve anything outside the static directory.
+    res.writeHead(400).end();
+    return;
+  }
   if (!existsSync(file) || statSync(file).isDirectory()) {
     // Single-page app: unknown paths get the shell.
     file = join(staticDir, 'index.html');
