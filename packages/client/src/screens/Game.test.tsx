@@ -71,4 +71,20 @@ describe('Game screen', () => {
       expect(b).toBeDisabled();
     }
   });
+
+  it('lets the current player draw, and asks for one more card after the first', () => {
+    const send = vi.spyOn(client, 'send').mockImplementation(() => {});
+    const state = chooseAll(createGame(seats, 21));
+    const { unmount } = render(<Game view={redact(state, 'p1')} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Your turn.');
+    fireEvent.click(screen.getByRole('button', { name: /^train deck/ }));
+    expect(send).toHaveBeenCalledWith({ type: 'action', action: { type: 'drawBlind' } });
+    unmount();
+
+    const r = apply(state, 'p1', { type: 'drawBlind' });
+    if (!r.ok) throw new Error(r.violation.message);
+    render(<Game view={redact(r.state, 'p1')} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Your turn: draw one more card.');
+    expect(screen.getByRole('button', { name: /^train deck/ })).toBeEnabled();
+  });
 });

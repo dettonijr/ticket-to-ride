@@ -1,18 +1,25 @@
 import type { Card } from '@railyard/engine';
 
-/** The shared table: face-up cards and the deck counters. Clicks arrive in a later ticket. */
+/** The shared table: face-up cards and the deck counters, clickable when a draw is legal. */
 export function Table({
   faceUp,
   trainDeckSize,
   discardSize,
   ticketDeckSize,
-  canDraw,
+  faceUpIndexes,
+  canDrawBlind,
+  onDrawFaceUp,
+  onDrawBlind,
 }: {
   faceUp: readonly Card[];
   trainDeckSize: number;
   discardSize: number;
   ticketDeckSize: number;
-  canDraw: boolean;
+  /** Face-up slots the viewer may take right now; empty when drawing is not legal. */
+  faceUpIndexes: readonly number[];
+  canDrawBlind: boolean;
+  onDrawFaceUp: (index: number) => void;
+  onDrawBlind: () => void;
 }) {
   return (
     <section aria-label="table">
@@ -24,8 +31,9 @@ export function Table({
               type="button"
               className={`card card-${card}`}
               id={`face-up-${i}`}
-              disabled={!canDraw}
+              disabled={!faceUpIndexes.includes(i)}
               aria-label={`face-up ${card}`}
+              onClick={() => onDrawFaceUp(i)}
             >
               {card}
             </button>
@@ -36,8 +44,9 @@ export function Table({
             type="button"
             className="card card-deck"
             id="train-deck"
-            disabled={!canDraw}
+            disabled={!canDrawBlind}
             aria-label={`train deck, ${trainDeckSize} cards`}
+            onClick={onDrawBlind}
           >
             Deck {trainDeckSize}
           </button>
