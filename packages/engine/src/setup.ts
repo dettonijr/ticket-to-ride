@@ -80,11 +80,8 @@ export function createGame(seats: readonly PlayerSeat[], seed: number): GameStat
   if (seats.length < MIN_PLAYERS || seats.length > MAX_PLAYERS) {
     throw new Error(`a game needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players`);
   }
-  let rng = seedRng(seed);
-  let trainDeck: Card[];
-  let ticketDeck: typeof TICKETS extends readonly (infer T)[] ? T[] : never;
-  [trainDeck, rng] = shuffle(fullTrainDeck(), rng);
-  [ticketDeck, rng] = shuffle(TICKETS, rng);
+  const [trainDeck, rngAfterTrains] = shuffle(fullTrainDeck(), seedRng(seed));
+  const [ticketDeck, rng] = shuffle(TICKETS, rngAfterTrains);
 
   const players: PlayerState[] = seats.map((seat) => {
     const hand = trainDeck.splice(0, INITIAL_HAND);
