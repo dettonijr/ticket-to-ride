@@ -101,6 +101,10 @@ class Connection implements Outbox {
           if (!this.room || !this.seat) throw new RoomError('Join a game first');
           this.rooms.start(this.room, this.seat.id);
           return;
+        case 'action':
+          if (!this.room || !this.seat) throw new RoomError('Join a game first');
+          this.rooms.act(this.room, this.seat.id, msg.action);
+          return;
       }
     } catch (err) {
       if (err instanceof RoomError) {
