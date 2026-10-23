@@ -28,10 +28,12 @@ export const ROUTE_POINTS: Readonly<Record<number, number>> = {
 export const TWIN_CLOSED_AT_OR_BELOW = 3;
 
 /**
- * Every valid set of cards a hand can spend on a route: one entry per usable
- * colour (grey routes accept any colour), each using as few locomotives as the
- * hand allows, plus locomotives alone when the hand holds enough. Colours are
- * listed in the fixed colour order so clients render options stably.
+ * Every valid set of cards a hand can spend on a route. For each usable colour
+ * (grey routes accept any colour) every split between that colour and
+ * locomotives the hand can afford is offered, fewest locomotives first, so a
+ * player may keep colour cards by spending locomotives instead. Locomotives
+ * alone come last, once. Colours follow the fixed colour order so clients
+ * render options stably.
  */
 export function claimOptions(hand: readonly Card[], route: Route): Card[][] {
   const counts = countCards(hand);
@@ -41,13 +43,14 @@ export function claimOptions(hand: readonly Card[], route: Route): Card[][] {
   for (const colour of colours) {
     const have = counts.get(colour) ?? 0;
     if (have === 0) continue;
-    const useColour = Math.min(have, route.length);
-    const needLocomotives = route.length - useColour;
-    if (needLocomotives > locomotives) continue;
-    options.push([
-      ...Array<Card>(useColour).fill(colour),
-      ...Array<Card>(needLocomotives).fill('locomotive'),
-    ]);
+    const fewest = Math.max(0, route.length - have);
+    const most = Math.min(locomotives, route.length - 1);
+    for (let n = fewest; n <= most; n++) {
+      options.push([
+        ...Array<Card>(route.length - n).fill(colour),
+        ...Array<Card>(n).fill('locomotive'),
+      ]);
+    }
   }
   if (locomotives >= route.length) options.push(Array<Card>(route.length).fill('locomotive'));
   return options;
