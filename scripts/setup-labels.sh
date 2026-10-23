@@ -16,8 +16,15 @@ labels=(
   "wontfix|ffffff|Will not be actioned"
 )
 
+# Uses the REST API rather than `gh label create`, which needs GraphQL and is
+# unavailable in some hosted sessions.
 for spec in "${labels[@]}"; do
   IFS='|' read -r name color desc <<<"$spec"
-  gh label create "$name" --repo "$repo" --color "$color" --description "$desc" --force
-  echo "ok: $name"
+  if gh api "repos/$repo/labels/$name" >/dev/null 2>&1; then
+    gh api --method PATCH "repos/$repo/labels/$name" -f color="$color" -f description="$desc" >/dev/null
+    echo "updated: $name"
+  else
+    gh api --method POST "repos/$repo/labels" -f name="$name" -f color="$color" -f description="$desc" >/dev/null
+    echo "created: $name"
+  fi
 done
