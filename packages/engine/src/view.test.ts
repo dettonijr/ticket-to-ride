@@ -81,4 +81,43 @@ describe('redact', () => {
     expect(redact(state, 'p1').waitingOn).toEqual([]);
     expect(redact(state, 'p1').lastAction?.description).toBe('Bob kept 2 tickets');
   });
+
+  it('reveals every player’s tickets and the breakdown only once finished', () => {
+    let state = createGame(seats, 11);
+    for (const p of state.players) {
+      const r = apply(state, p.id, {
+        type: 'chooseInitialTickets',
+        keep: p.pendingTickets.slice(0, 2).map((t) => t.id),
+      });
+      if (!r.ok) throw new Error(r.violation.message);
+      state = r.state;
+    }
+    const bobTicket = state.players[1]!.tickets[0]!.id;
+    // Ann is about to run out of trains; one-space claims end the game quickly.
+    state = {
+      ...state,
+      players: state.players.map((p) =>
+        p.id === 'p1' ? { ...p, trainsLeft: 3, hand: ['blue', 'blue'] } : { ...p, hand: ['red'] },
+      ),
+    };
+    const claim = (s: typeof state, who: string, routeId: string, card: 'blue' | 'red') => {
+      const r = apply(s, who, { type: 'claimRoute', routeId, cards: [card] });
+      if (!r.ok) throw new Error(r.violation.message);
+      return r.state;
+    };
+    state = claim(state, 'p1', 'nashville-atlanta-1', 'blue'); // triggers the final round
+    expect(redact(state, 'p1').turnsRemaining).toBe(2);
+    expect(redact(state, 'p1').finalRoundTriggeredBy).toBe('p1');
+    expect(JSON.stringify(redact(state, 'p1'))).not.toContain(`"${bobTicket}"`);
+    expect(redact(state, 'p1').result).toBeUndefined();
+
+    state = claim(state, 'p2', 'vancouver-seattle-1', 'red');
+    state = claim(state, 'p1', 'seattle-portland-1', 'blue');
+    expect(state.phase).toBe('finished');
+    const view = redact(state, 'p1');
+    expect(view.result).toBeDefined();
+    expect(view.turnsRemaining).toBe(0);
+    expect(JSON.stringify(view.result)).toContain(`"${bobTicket}"`);
+    expect(view.result?.players.map((p) => p.playerId).sort()).toEqual(['p1', 'p2']);
+  });
 });

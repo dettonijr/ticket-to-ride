@@ -1,3 +1,4 @@
+import { finalScores } from './scoring/finalScore';
 import type { GameState, LastAction } from './state';
 
 /** A player ending a turn with this many trains or fewer triggers the final round. */
@@ -37,5 +38,6 @@ export function endTurn(state: GameState, lastAction: LastAction): GameState {
   };
   if (finalRoundTriggeredBy !== undefined) result.finalRoundTriggeredBy = finalRoundTriggeredBy;
   if (turnsRemaining !== undefined) result.turnsRemaining = turnsRemaining;
+  if (finished) result.result = finalScores(result);
   return result;
 }
