@@ -282,8 +282,23 @@ button.link {
   cursor: pointer;
 }
 
-.route-claimable:hover .route-edge {
+.route-claimable .route-edge {
   stroke: var(--accent);
+  stroke-width: 12;
+}
+
+.route-claimable:hover .route-edge {
+  stroke: var(--fg);
+}
+
+.route-claimed .route-edge {
+  stroke: var(--fg);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .city-dot {

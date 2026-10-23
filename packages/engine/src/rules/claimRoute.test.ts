@@ -72,8 +72,9 @@ describe('claimRoute', () => {
 
   it('rejects a route that does not exist', () => {
     const state = playing({ p1: ['purple'] });
-    expect(apply(state, 'p1', { type: 'claimRoute', routeId: 'nowhere-1', cards: ['purple'] }))
-      .toMatchObject({ ok: false, violation: { code: 'unknown-route' } });
+    expect(
+      apply(state, 'p1', { type: 'claimRoute', routeId: 'nowhere-1', cards: ['purple'] }),
+    ).toMatchObject({ ok: false, violation: { code: 'unknown-route' } });
   });
 
   it('rejects a route already claimed', () => {
@@ -100,7 +101,10 @@ describe('claimRoute', () => {
   });
 
   it('rejects a claim outside turnStart', () => {
-    const state = { ...playing({ p1: ['purple', 'purple', 'purple', 'purple'] }), phase: 'drewOne' as const };
+    const state = {
+      ...playing({ p1: ['purple', 'purple', 'purple', 'purple'] }),
+      phase: 'drewOne' as const,
+    };
     expect(
       apply(state, 'p1', {
         type: 'claimRoute',
@@ -113,7 +117,11 @@ describe('claimRoute', () => {
   it('rejects the wrong number of cards', () => {
     const state = playing({ p1: ['purple', 'purple', 'purple', 'purple', 'purple'] });
     expect(
-      apply(state, 'p1', { type: 'claimRoute', routeId: DENVER_OMAHA, cards: ['purple', 'purple', 'purple'] }),
+      apply(state, 'p1', {
+        type: 'claimRoute',
+        routeId: DENVER_OMAHA,
+        cards: ['purple', 'purple', 'purple'],
+      }),
     ).toMatchObject({ ok: false, violation: { code: 'wrong-card-count' } });
     expect(
       apply(state, 'p1', {
@@ -152,7 +160,11 @@ describe('claimRoute', () => {
   it('accepts locomotives as wild cards, alone or mixed with the colour', () => {
     const state = playing({ p1: ['red', 'locomotive', 'locomotive', 'locomotive'] });
     const mixed = ok(
-      apply(state, 'p1', { type: 'claimRoute', routeId: NY_BOSTON_1, cards: ['red', 'locomotive'] }),
+      apply(state, 'p1', {
+        type: 'claimRoute',
+        routeId: NY_BOSTON_1,
+        cards: ['red', 'locomotive'],
+      }),
     );
     expect(mixed.claimed[NY_BOSTON_1]).toBe('p1');
     const alone = ok(

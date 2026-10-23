@@ -1,3 +1,4 @@
+import { claimOptions, legalActions, ROUTE_BY_ID, ROUTE_POINTS } from '@railyard/engine';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage } from '@railyard/protocol';
@@ -239,5 +240,63 @@ describe('server', () => {
     ann.close();
     bob.close();
     stranger.close();
+  });
+
+  it('lets the current player claim a route and shows it to everyone', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'blue' });
+    const { code } = await annJoined;
+    const bobJoined = bob.next('joined');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'red' });
+    await bobJoined;
+    const dealt = ann.next('snapshot');
+    ann.send({ type: 'start' });
+    const first = await dealt;
+    const bobFirst = bob.last('snapshot') ?? (await bob.next('snapshot'));
+
+    // Both keep all three tickets so the game reaches turnStart.
+    for (const [c, snap] of [
+      [ann, first],
+      [bob, bobFirst],
+    ] as const) {
+      const seen = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
+      c.send({
+        type: 'action',
+        action: {
+          type: 'chooseInitialTickets',
+          keep: snap.view.me.pendingTickets.map((t) => t.id),
+        },
+      });
+      await seen;
+    }
+    const annView = ann.last('snapshot')!.view;
+    const bobView = bob.last('snapshot')!.view;
+    expect(annView.phase).toBe('turnStart');
+
+    // Whoever is first always has a claim: a one-space grey route takes any single card.
+    const [mover, moverView, other] =
+      annView.currentPlayer === annView.me.id ? [ann, annView, bob] : [bob, bobView, ann];
+    const claim = legalActions(moverView).find((a) => a.type === 'claimRoute');
+    if (!claim || claim.type !== 'claimRoute') throw new Error('expected claimRoute');
+    const routeId = claim.routes[0]!;
+    const route = ROUTE_BY_ID.get(routeId)!;
+    const cards = claimOptions(moverView.me.hand, route)[0]!;
+
+    const moverSees = mover.next('snapshot');
+    const otherSees = other.next('snapshot');
+    mover.send({ type: 'action', action: { type: 'claimRoute', routeId, cards } });
+    const [m, o] = await Promise.all([moverSees, otherSees]);
+    expect(m.view.claimed[routeId]).toBe(moverView.me.id);
+    expect(o.view.claimed[routeId]).toBe(moverView.me.id);
+    expect(m.view.me.hand).toHaveLength(moverView.me.hand.length - route.length);
+    const moverPublic = o.view.players.find((p) => p.id === moverView.me.id)!;
+    expect(moverPublic.trainsLeft).toBe(45 - route.length);
+    expect(moverPublic.score).toBe(ROUTE_POINTS[route.length]);
+    expect(o.view.currentPlayer).toBe(o.view.me.id);
+
+    ann.close();
+    bob.close();
   });
 });

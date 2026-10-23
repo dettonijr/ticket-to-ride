@@ -14,7 +14,14 @@ import { endTurn } from '../turn';
 import type { PlayerView } from '../view';
 
 /** Points for claiming a route, by its length in spaces. */
-export const ROUTE_POINTS: Readonly<Record<number, number>> = { 1: 1, 2: 2, 3: 4, 4: 7, 5: 10, 6: 15 };
+export const ROUTE_POINTS: Readonly<Record<number, number>> = {
+  1: 1,
+  2: 2,
+  3: 4,
+  4: 7,
+  5: 10,
+  6: 15,
+};
 
 /** With this many players or fewer, only one of a double route's twins may be claimed. */
 export const TWIN_CLOSED_AT_OR_BELOW = 3;
