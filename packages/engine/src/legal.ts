@@ -12,11 +12,23 @@ import type { PlayerView } from './view';
  */
 export type LegalAction =
   | { type: 'chooseInitialTickets'; minKeep: number }
-  | { type: 'drawFaceUp' }
+  /** Which face-up slots may be taken right now. */
+  | { type: 'drawFaceUp'; indexes: number[] }
   | { type: 'drawBlind' }
   | { type: 'claimRoute' }
   | { type: 'drawTickets' }
   | { type: 'chooseTickets'; minKeep: number };
+
+/** The draw actions open to the current player, given whether this is the second draw. */
+function drawActions(view: PlayerView, secondDraw: boolean): LegalAction[] {
+  const actions: LegalAction[] = [];
+  const indexes = view.faceUp
+    .map((card, i) => (secondDraw && card === 'locomotive' ? -1 : i))
+    .filter((i) => i >= 0);
+  if (indexes.length > 0) actions.push({ type: 'drawFaceUp', indexes });
+  if (view.trainDeckSize + view.discardSize > 0) actions.push({ type: 'drawBlind' });
+  return actions;
+}
 
 export function legalActions(view: PlayerView): LegalAction[] {
   switch (view.phase) {
@@ -27,16 +39,17 @@ export function legalActions(view: PlayerView): LegalAction[] {
     case 'turnStart':
       if (view.currentPlayer !== view.me.id) return [];
       return [
-        { type: 'drawFaceUp' },
-        { type: 'drawBlind' },
+        ...drawActions(view, false),
         { type: 'claimRoute' },
         ...(view.ticketDeckSize > 0 ? [{ type: 'drawTickets' } as const] : []),
       ];
+    case 'drewOne':
+      if (view.currentPlayer !== view.me.id) return [];
+      return drawActions(view, true);
     case 'choosingTickets':
       return view.currentPlayer === view.me.id && view.me.pendingTickets.length > 0
         ? [{ type: 'chooseTickets', minKeep: DRAW_MIN_KEEP }]
         : [];
-    case 'drewOne':
     case 'finished':
       return [];
   }

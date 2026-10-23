@@ -14,8 +14,10 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
   const ticketChoice = legal.find((a) => a.type === 'chooseInitialTickets');
   const ticketKeep = legal.find((a) => a.type === 'chooseTickets');
   const canDrawTickets = legal.some((a) => a.type === 'drawTickets');
-  const canDraw = legal.some((a) => a.type === 'drawFaceUp' || a.type === 'drawBlind');
+  const faceUpIndexes = legal.find((a) => a.type === 'drawFaceUp')?.indexes ?? [];
+  const canDrawBlind = legal.some((a) => a.type === 'drawBlind');
   const myTurn = view.phase !== 'setup' && view.currentPlayer === view.me.id;
+  const secondDraw = myTurn && view.phase === 'drewOne';
   const waitingNames = view.waitingOn
     .filter((id) => id !== view.me.id)
     .map((id) => view.players.find((p) => p.id === id)?.name ?? id);
@@ -51,7 +53,7 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
         )}
         {myTurn && (
           <p className="banner" role="status">
-            Your turn.
+            {secondDraw ? 'Your turn: draw one more card.' : 'Your turn.'}
           </p>
         )}
         {rejection && (
@@ -68,7 +70,12 @@ export function Game({ view, rejection }: { view: PlayerView; rejection?: string
           trainDeckSize={view.trainDeckSize}
           discardSize={view.discardSize}
           ticketDeckSize={view.ticketDeckSize}
-          canDraw={canDraw}
+          faceUpIndexes={faceUpIndexes}
+          canDrawBlind={canDrawBlind}
+          onDrawFaceUp={(index) =>
+            client.send({ type: 'action', action: { type: 'drawFaceUp', index } })
+          }
+          onDrawBlind={() => client.send({ type: 'action', action: { type: 'drawBlind' } })}
         />
         <Hand hand={view.me.hand} />
         <Tickets
