@@ -1,7 +1,7 @@
 import type { RngState } from './rng';
 import type { FinalResult } from './scoring/finalScore';
 
-/** The eight train card colours plus the wild locomotive. */
+/** The eight train card colours; the locomotive, which stands in for any colour, is separate. */
 export const COLOURS = [
   'purple',
   'blue',

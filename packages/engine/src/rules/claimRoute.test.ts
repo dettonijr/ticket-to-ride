@@ -157,7 +157,7 @@ describe('claimRoute', () => {
     ).toMatchObject({ ok: false, violation: { code: 'wrong-colour' } });
   });
 
-  it('accepts locomotives as wild cards, alone or mixed with the colour', () => {
+  it('accepts locomotives standing in for any colour, alone or mixed with the colour', () => {
     const state = playing({ p1: ['red', 'locomotive', 'locomotive', 'locomotive'] });
     const mixed = ok(
       apply(state, 'p1', {
