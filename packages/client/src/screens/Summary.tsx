@@ -1,4 +1,5 @@
 import {
+  cityName,
   LONGEST_PATH_BONUS,
   type PlayerColour,
   type PlayerId,
@@ -6,7 +7,6 @@ import {
   type PlayerView,
 } from '@railyard/engine';
 import { Board, PLAYER_FILL } from '../board/Board';
-import { cityName } from '../panels/TicketChoice';
 import { client, type Presence } from '../ws';
 
 function ticketLines(result: PlayerResult, completed: boolean) {

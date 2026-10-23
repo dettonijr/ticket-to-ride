@@ -597,5 +597,10 @@ export const TICKETS: readonly Ticket[] = [
 ];
 
 export const CITY_BY_ID: ReadonlyMap<string, City> = new Map(CITIES.map((c) => [c.id, c]));
+
+/** The display name of a city, or the id itself if it is unknown. */
+export function cityName(id: string): string {
+  return CITY_BY_ID.get(id)?.name ?? id;
+}
 export const ROUTE_BY_ID: ReadonlyMap<string, Route> = new Map(ROUTES.map((r) => [r.id, r]));
 export const TICKET_BY_ID: ReadonlyMap<string, Ticket> = new Map(TICKETS.map((t) => [t.id, t]));

@@ -1,15 +1,12 @@
-import type { ApplyResult } from '../apply';
 import type { GameState, PlayerState, TicketId } from '../state';
 import { endTurn } from '../turn';
+import { refuse, type ApplyResult } from '../violation';
+import { keepFromPending } from './keepTickets';
 
 /** Tickets drawn in one mid-game draw. */
 export const TICKETS_PER_DRAW = 3;
 /** Minimum tickets to keep from a mid-game draw. */
 export const DRAW_MIN_KEEP = 1;
-
-function refuse(code: string, message: string): ApplyResult {
-  return { ok: false, violation: { code, message } };
-}
 
 /**
  * Draw up to three tickets from the top of the ticket deck into the player's
@@ -45,26 +42,13 @@ export function chooseTickets(
   if (state.phase !== 'choosingTickets')
     return refuse('wrong-phase', 'You have no tickets to choose from');
   if (state.currentPlayer !== player.id) return refuse('not-your-turn', 'It is not your turn');
-  const unknown = keep.find((id) => !player.pendingTickets.some((t) => t.id === id));
-  if (unknown !== undefined) return refuse('unknown-ticket', 'That ticket is not yours to keep');
-  const keepSet = new Set(keep);
-  if (keepSet.size < DRAW_MIN_KEEP) return refuse('keep-too-few', 'Keep at least one ticket');
-
-  const kept = player.pendingTickets.filter((t) => keepSet.has(t.id));
-  const returned = player.pendingTickets.filter((t) => !keepSet.has(t.id));
-
-  const afterChoice: GameState = {
-    ...state,
-    ticketDeck: [...state.ticketDeck, ...returned],
-    players: state.players.map((p) =>
-      p.id === player.id ? { ...p, tickets: [...p.tickets, ...kept], pendingTickets: [] } : p,
-    ),
-  };
+  const chosen = keepFromPending(state, player, keep, DRAW_MIN_KEEP, 'Keep at least one ticket');
+  if (!chosen.ok) return chosen;
   return {
     ok: true,
-    state: endTurn(afterChoice, {
+    state: endTurn(chosen.state, {
       playerId: player.id,
-      description: `${player.name} drew tickets and kept ${kept.length}`,
+      description: `${player.name} drew tickets and kept ${chosen.kept.length}`,
     }),
   };
 }

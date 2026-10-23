@@ -1,18 +1,16 @@
-import type { Action, RuleViolation } from './actions';
+import type { Action } from './actions';
 import { claimRoute } from './rules/claimRoute';
 import { drawBlind, drawFaceUp } from './rules/drawCards';
 import { chooseTickets, drawTickets } from './rules/drawTickets';
+import { keepFromPending } from './rules/keepTickets';
 import { INITIAL_TICKETS, type GameState, type PlayerId, type PlayerState } from './state';
+import { refuse, type ApplyResult } from './violation';
 
-export type ApplyResult = { ok: true; state: GameState } | { ok: false; violation: RuleViolation };
+export type { ApplyResult } from './violation';
 
 /** Minimum tickets to keep from the initial deal. */
 export const INITIAL_MIN_KEEP = 2;
 export { DRAW_MIN_KEEP } from './rules/drawTickets';
-
-function refuse(code: string, message: string): ApplyResult {
-  return { ok: false, violation: { code, message } };
-}
 
 /**
  * The whole rulebook in one function: take the current game and one player's
@@ -49,36 +47,28 @@ function chooseInitialTickets(
   if (state.phase !== 'setup') return refuse('wrong-phase', 'The game has already started');
   if (player.pendingTickets.length === 0)
     return refuse('already-chosen', 'You have already chosen your tickets');
-  const unknown = keep.find((id) => !player.pendingTickets.some((t) => t.id === id));
-  if (unknown !== undefined) return refuse('unknown-ticket', 'That ticket is not yours to keep');
-  const keepSet = new Set(keep);
-  if (keepSet.size < INITIAL_MIN_KEEP)
-    return refuse(
-      'keep-too-few',
-      `Keep at least ${INITIAL_MIN_KEEP} of your ${INITIAL_TICKETS} tickets`,
-    );
-
-  const kept = player.pendingTickets.filter((t) => keepSet.has(t.id));
-  const returned = player.pendingTickets.filter((t) => !keepSet.has(t.id));
-
-  const players = state.players.map((p) =>
-    p.id === player.id ? { ...p, tickets: [...p.tickets, ...kept], pendingTickets: [] } : p,
+  const chosen = keepFromPending(
+    state,
+    player,
+    keep,
+    INITIAL_MIN_KEEP,
+    `Keep at least ${INITIAL_MIN_KEEP} of your ${INITIAL_TICKETS} tickets`,
   );
-  const everyoneChosen = players.every((p) => p.pendingTickets.length === 0);
+  if (!chosen.ok) return chosen;
 
+  const everyoneChosen = chosen.state.players.every((p) => p.pendingTickets.length === 0);
+  const kept = chosen.kept.length;
   return {
     ok: true,
     state: {
-      ...state,
-      players,
-      ticketDeck: [...state.ticketDeck, ...returned],
+      ...chosen.state,
       phase: everyoneChosen ? 'turnStart' : 'setup',
       currentPlayer: everyoneChosen
         ? (state.turnOrder[0] ?? state.currentPlayer)
         : state.currentPlayer,
       lastAction: {
         playerId: player.id,
-        description: `${player.name} kept ${kept.length} ticket${kept.length === 1 ? '' : 's'}`,
+        description: `${player.name} kept ${kept} ticket${kept === 1 ? '' : 's'}`,
       },
     },
   };

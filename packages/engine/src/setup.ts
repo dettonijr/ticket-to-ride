@@ -32,6 +32,33 @@ export function fullTrainDeck(): Card[] {
   return deck;
 }
 
+/** The train card supply: the deck, the discards it is rebuilt from, and the rng. */
+export interface Supply {
+  trainDeck: Card[];
+  discard: Card[];
+  rng: RngState;
+}
+
+/**
+ * Take the top card of the deck, reshuffling the discards into a new deck
+ * first when the deck is empty. `card` is undefined when both are empty.
+ * Pure: returns a new supply.
+ */
+export function drawFromSupply(supply: Supply): { card: Card | undefined; supply: Supply } {
+  let { trainDeck, discard, rng } = supply;
+  if (trainDeck.length === 0 && discard.length > 0) {
+    [trainDeck, rng] = shuffle(discard, rng);
+    discard = [];
+  } else {
+    trainDeck = trainDeck.slice();
+  }
+  const card = trainDeck.shift();
+  return { card, supply: { trainDeck, discard, rng } };
+}
+
+/** How many attempts at a legal face-up row before giving up on the rule. */
+const MAX_FACE_UP_DEALS = 10;
+
 /**
  * Fill the face-up row to five from the deck (reshuffling discards in when the
  * deck runs dry) and, whenever three or more face-up cards are locomotives,
@@ -44,32 +71,24 @@ export function refillFaceUp(
   rng: RngState,
 ): { faceUp: Card[]; trainDeck: Card[]; discard: Card[]; rng: RngState } {
   let row = faceUp.slice();
-  let deck = trainDeck.slice();
-  let pile = discard.slice();
-  let state = rng;
+  let supply: Supply = { trainDeck: trainDeck.slice(), discard: discard.slice(), rng };
 
-  const draw = (): Card | undefined => {
-    if (deck.length === 0 && pile.length > 0) {
-      [deck, state] = shuffle(pile, state);
-      pile = [];
-    }
-    return deck.shift();
-  };
-
-  // Guard against an endless loop when the supply holds too many locomotives
-  // to ever deal a legal row (cannot happen with a full deck, but be safe).
-  for (let attempts = 0; attempts < 10; attempts++) {
+  // Late in a game the supply really can be mostly locomotives, so a legal row
+  // (fewer than three locomotives) may be impossible. After a bounded number
+  // of redeals the last row stands, locomotives and all, rather than looping.
+  for (let attempt = 1; ; attempt++) {
     while (row.length < FACE_UP_COUNT) {
-      const card = draw();
-      if (card === undefined) break;
-      row.push(card);
+      const drawn = drawFromSupply(supply);
+      supply = drawn.supply;
+      if (drawn.card === undefined) break;
+      row.push(drawn.card);
     }
     const locomotives = row.filter((c) => c === 'locomotive').length;
-    if (locomotives < 3) break;
-    pile = pile.concat(row);
+    if (locomotives < 3 || attempt >= MAX_FACE_UP_DEALS) break;
+    supply = { ...supply, discard: supply.discard.concat(row) };
     row = [];
   }
-  return { faceUp: row, trainDeck: deck, discard: pile, rng: state };
+  return { faceUp: row, trainDeck: supply.trainDeck, discard: supply.discard, rng: supply.rng };
 }
 
 /**

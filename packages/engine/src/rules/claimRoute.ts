@@ -1,5 +1,5 @@
-import type { ApplyResult } from '../apply';
-import { CITY_BY_ID, ROUTE_BY_ID, ROUTES } from '../data/usa';
+import { countCards } from '../cards';
+import { cityName, ROUTE_BY_ID, ROUTES } from '../data/usa';
 import {
   COLOURS,
   type Card,
@@ -12,6 +12,7 @@ import {
 } from '../state';
 import { endTurn } from '../turn';
 import type { PlayerView } from '../view';
+import { refuse, type ApplyResult } from '../violation';
 
 /** Points for claiming a route, by its length in spaces. */
 export const ROUTE_POINTS: Readonly<Record<number, number>> = {
@@ -25,16 +26,6 @@ export const ROUTE_POINTS: Readonly<Record<number, number>> = {
 
 /** With this many players or fewer, only one of a double route's twins may be claimed. */
 export const TWIN_CLOSED_AT_OR_BELOW = 3;
-
-function refuse(code: string, message: string): ApplyResult {
-  return { ok: false, violation: { code, message } };
-}
-
-function countCards(cards: readonly Card[]): Map<Card, number> {
-  const counts = new Map<Card, number>();
-  for (const c of cards) counts.set(c, (counts.get(c) ?? 0) + 1);
-  return counts;
-}
 
 /**
  * Every valid set of cards a hand can spend on a route: one entry per usable
@@ -156,9 +147,6 @@ export function claimRoute(
       ? { ...p, hand, trainsLeft: p.trainsLeft - route.length, score: p.score + points }
       : p,
   );
-  const from = CITY_BY_ID.get(route.from)?.name ?? route.from;
-  const to = CITY_BY_ID.get(route.to)?.name ?? route.to;
-
   return {
     ok: true,
     state: endTurn(
@@ -168,7 +156,10 @@ export function claimRoute(
         discard: [...state.discard, ...cards],
         claimed: { ...state.claimed, [route.id]: player.id },
       },
-      { playerId: player.id, description: `${player.name} claimed ${from} to ${to}` },
+      {
+        playerId: player.id,
+        description: `${player.name} claimed ${cityName(route.from)} to ${cityName(route.to)}`,
+      },
     ),
   };
 }

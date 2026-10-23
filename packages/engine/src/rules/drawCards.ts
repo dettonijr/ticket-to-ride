@@ -1,12 +1,7 @@
-import type { ApplyResult } from '../apply';
-import { shuffle } from '../rng';
-import { refillFaceUp } from '../setup';
+import { drawFromSupply, refillFaceUp } from '../setup';
 import type { Card, GameState, PlayerState } from '../state';
 import { endTurn } from '../turn';
-
-function refuse(code: string, message: string): ApplyResult {
-  return { ok: false, violation: { code, message } };
-}
+import { refuse, type ApplyResult } from '../violation';
 
 /** Phases in which the current player may draw a train card. */
 function drawingPhase(state: GameState): boolean {
@@ -85,17 +80,14 @@ export function drawBlind(state: GameState, player: PlayerState): ApplyResult {
   const refused = checkTurn(state, player);
   if (refused) return refused;
 
-  let deck = state.trainDeck.slice();
-  let discard = state.discard.slice();
-  let rng = state.rng;
-  if (deck.length === 0 && discard.length > 0) {
-    [deck, rng] = shuffle(discard, rng);
-    discard = [];
-  }
-  const card = deck.shift();
+  const { card, supply } = drawFromSupply({
+    trainDeck: state.trainDeck,
+    discard: state.discard,
+    rng: state.rng,
+  });
   if (card === undefined) return refuse('deck-empty', 'The deck and the discards are both empty');
 
-  const refilled = refillFaceUp(state.faceUp, deck, discard, rng);
+  const refilled = refillFaceUp(state.faceUp, supply.trainDeck, supply.discard, supply.rng);
   const next: GameState = {
     ...state,
     players: withCard(state, player, card),
