@@ -179,11 +179,12 @@ describe('RoomManager', () => {
 
   it('lets the host start a rematch once the game is finished, with a fresh deal', () => {
     let seed = 42;
-    let flip = false;
+    let deals = 0;
     const rooms = new RoomManager({
       randomCode: () => 'CODE1X',
       randomSeed: () => seed++,
-      randomOrder: (items) => ((flip = !flip) ? items.slice().reverse() : items.slice()),
+      // First deal reversed, second in seating order, so the rematch order visibly differs.
+      randomOrder: (items) => (deals++ === 0 ? items.slice().reverse() : items.slice()),
     });
     const ann = inbox();
     const bob = inbox();
