@@ -240,4 +240,65 @@ describe('server', () => {
     bob.close();
     stranger.close();
   });
+
+  it('lets the current player draw two cards and shows both players the new table', async () => {
+    const ann = await Client.connect();
+    const bob = await Client.connect();
+    const annJoined = ann.next('joined');
+    ann.send({ type: 'create', name: 'Ann', colour: 'blue' });
+    const { code } = await annJoined;
+    const bobJoined = bob.next('joined');
+    bob.send({ type: 'join', code, name: 'Bob', colour: 'red' });
+    await bobJoined;
+    const annSnap = ann.next('snapshot');
+    const bobSnap = bob.next('snapshot');
+    ann.send({ type: 'start' });
+    const [a0, b0] = await Promise.all([annSnap, bobSnap]);
+
+    // Both keep all three tickets to reach turnStart.
+    const started = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
+    ann.send({
+      type: 'action',
+      action: { type: 'chooseInitialTickets', keep: a0.view.me.pendingTickets.map((t) => t.id) },
+    });
+    await started;
+    const ready = Promise.all([ann.next('snapshot'), bob.next('snapshot')]);
+    bob.send({
+      type: 'action',
+      action: { type: 'chooseInitialTickets', keep: b0.view.me.pendingTickets.map((t) => t.id) },
+    });
+    const [a1] = await ready;
+    expect(a1.view.phase).toBe('turnStart');
+
+    const clients = { [a0.view.me.id]: ann, [b0.view.me.id]: bob };
+    const current = clients[a1.view.currentPlayer]!;
+    const other = current === ann ? bob : ann;
+    const handBefore = a1.view.players.find((p) => p.id === a1.view.currentPlayer)!.handSize;
+
+    // First draw: a face-up card. Both see the replacement and the bigger hand.
+    const afterOne = Promise.all([current.next('snapshot'), other.next('snapshot')]);
+    current.send({ type: 'action', action: { type: 'drawFaceUp', index: 0 } });
+    const [c1, o1] = await afterOne;
+    expect(c1.view.phase).toBe('drewOne');
+    expect(c1.view.me.hand).toHaveLength(handBefore + 1);
+    expect(o1.view.faceUp).toHaveLength(5);
+    expect(o1.view.players.find((p) => p.id === c1.view.me.id)!.handSize).toBe(handBefore + 1);
+
+    // Second draw: from the deck. The turn passes.
+    const afterTwo = Promise.all([current.next('snapshot'), other.next('snapshot')]);
+    current.send({ type: 'action', action: { type: 'drawBlind' } });
+    const [c2, o2] = await afterTwo;
+    expect(c2.view.me.hand).toHaveLength(handBefore + 2);
+    expect(c2.view.phase).toBe('turnStart');
+    expect(c2.view.currentPlayer).toBe(o2.view.me.id);
+    expect(o2.view.lastAction?.description).toMatch(/drew a card from the deck$/);
+
+    // The player who is not current cannot draw.
+    const refused = current.next('rejected');
+    current.send({ type: 'action', action: { type: 'drawBlind' } });
+    expect((await refused).reason).toBe('It is not your turn');
+
+    ann.close();
+    bob.close();
+  });
 });
