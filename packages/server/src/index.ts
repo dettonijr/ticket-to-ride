@@ -1,9 +1,8 @@
-import { createServer } from './server';
+import { createServer, serverConfigFromEnv } from './server';
 
-const port = Number(process.env['PORT'] ?? 3000);
-const host = process.env['HOST'] ?? '0.0.0.0';
+const { port, host, staticDir } = serverConfigFromEnv(process.env);
 
-const { httpServer } = createServer();
+const { httpServer } = createServer({ staticDir });
 httpServer.listen(port, host, () => {
-  console.log(`Railyard listening on http://${host}:${port}`);
+  console.log(`Railyard listening on http://${host}:${port}, serving ${staticDir}`);
 });
