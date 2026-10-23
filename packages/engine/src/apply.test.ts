@@ -123,18 +123,4 @@ describe('apply chooseInitialTickets', () => {
       violation: { code: 'wrong-phase' },
     });
   });
-
-  it('reports turn actions as not implemented yet', () => {
-    const game = createGame(seats, 5);
-    let state = game;
-    for (const id of ['p1', 'p2', 'p3']) {
-      state = ok(
-        apply(state, id, { type: 'chooseInitialTickets', keep: pending(state, id).slice(0, 2) }),
-      );
-    }
-    expect(apply(state, 'p1', { type: 'drawBlind' })).toMatchObject({
-      ok: false,
-      violation: { code: 'not-implemented' },
-    });
-  });
 });
